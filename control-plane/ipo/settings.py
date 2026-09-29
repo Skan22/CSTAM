@@ -15,6 +15,8 @@ class Settings:
     sandbox_image: str = "ipo-sandbox-v1"
     sandbox_flavor: str = "m1.tiny"
     backend_port: int = 80
+    gateways: tuple[str, ...] = ("gw-a", "gw-b")
+    debounce_seconds: float = 0.1
 
     @classmethod
     def from_platform(cls, cfg: dict[str, Any]) -> "Settings":
