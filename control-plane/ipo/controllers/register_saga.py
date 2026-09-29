@@ -5,7 +5,7 @@ and the job, so here it only contributes its undo. `provision` is the cold path'
 no-op for a warm claim, whose VM is already running.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -25,6 +25,10 @@ ROUTES_CHANNEL = "ipo_routes_changed"
 class Gateways(Protocol):
     def wait_for_route(self, conn: psycopg.Connection, host: str, timeout: float) -> None:
         """Return once both gateways have acked a version containing `host`; else raise."""
+        ...
+
+    def wait_for_route_removed(self, conn: psycopg.Connection, host: str, timeout: float) -> None:
+        """Return once both gateways have acked a version without `host`; else raise."""
         ...
 
 
@@ -186,11 +190,12 @@ class Activate:
 
 def build_runner(
     connect: Callable[[], psycopg.Connection], deps: Deps, *, worker_id: str,
-    hook: Hook | None = None, **kwargs: Any,
+    hook: Hook | None = None, extra: Mapping[str, Sequence[Step]] | None = None, **kwargs: Any,
 ) -> SagaRunner:
     steps: list[Step] = [
         Claim(deps), Provision(deps), Personalize(deps), Route(deps), Converge(deps),
         Probe(deps), Activate(deps),
     ]
     assert [s.name for s in steps] == STEP_NAMES
-    return SagaRunner(connect, {KIND: steps}, worker_id=worker_id, hook=hook, **kwargs)
+    return SagaRunner(connect, {KIND: steps, **(extra or {})}, worker_id=worker_id, hook=hook,
+                      **kwargs)

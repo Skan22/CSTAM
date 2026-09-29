@@ -33,12 +33,23 @@ class FakeGateways:
 
     def __init__(self) -> None:
         self.waited: list[str] = []
+        self.removed: list[str] = []
         self.fail: Exception | None = None
+        self.fail_removal: Exception | None = None
+        self.on_removal: Callable[[psycopg.Connection], None] | None = None
 
     def wait_for_route(self, conn: psycopg.Connection, host: str, timeout: float) -> None:
         self.waited.append(host)
         if self.fail:
             raise self.fail
+
+
+    def wait_for_route_removed(self, conn: psycopg.Connection, host: str, timeout: float) -> None:
+        self.removed.append(host)
+        if self.on_removal:
+            self.on_removal(conn)
+        if self.fail_removal:
+            raise self.fail_removal
 
 
 class FakeProber:

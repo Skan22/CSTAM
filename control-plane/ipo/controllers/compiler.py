@@ -267,14 +267,27 @@ class DbGateways:
         ).fetchone()
         return bool(row and row[0] == len(self.settings.gateways))
 
-    def wait_for_route(self, conn: psycopg.Connection, host: str, timeout: float) -> None:
+    def _removed(self, conn: psycopg.Connection, host: str) -> bool:
+        row = conn.execute(
+            "SELECT count(*) FROM gateway_status g JOIN config_versions c"
+            " ON c.version = g.live_version"
+            " WHERE g.gateway = ANY(%s) AND position(%s in c.body) = 0",
+            (list(self.settings.gateways), f"Host(`{host}`)"),
+        ).fetchone()
+        return bool(row and row[0] == len(self.settings.gateways))
+
+    def _wait(self, check: Callable[[], bool], what: str, timeout: float) -> None:
         deadline = time.monotonic() + timeout
-        while True:
-            if self._converged(conn, host):
-                return
+        while not check():
             if time.monotonic() >= deadline:
-                raise TimeoutError(f"route {host} not live on all gateways after {timeout}s")
+                raise TimeoutError(f"{what} not acked by all gateways after {timeout}s")
             time.sleep(self.poll_interval)
+
+    def wait_for_route(self, conn: psycopg.Connection, host: str, timeout: float) -> None:
+        self._wait(lambda: self._converged(conn, host), f"route {host}", timeout)
+
+    def wait_for_route_removed(self, conn: psycopg.Connection, host: str, timeout: float) -> None:
+        self._wait(lambda: self._removed(conn, host), f"removal of {host}", timeout)
 
 
 # ------------------------------------------------------------- controller

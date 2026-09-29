@@ -33,6 +33,7 @@ class Port:
     name: str
     ip: str
     tags: tuple[str, ...] = (TAG,)
+    created_at: float = 0.0  # epoch seconds
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class Server:
     port_id: str
     tags: tuple[str, ...] = (TAG,)
     metadata: Mapping[str, str] = field(default_factory=dict)
+    created_at: float = 0.0  # epoch seconds
 
 
 class Cloud(Protocol):

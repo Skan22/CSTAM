@@ -336,3 +336,19 @@ def test_http_agent_maps_status_codes_to_acks() -> None:
     srv.shutdown()  # type: ignore[attr-defined]
     with pytest.raises(ConnectionError):
         HttpAgent("http://127.0.0.1:1").put_config(v)
+
+
+def test_wait_for_route_removed_needs_every_gateway_on_a_version_without_it(dsn: str) -> None:
+    conn, _ = _version(dsn)  # v1 contains t1
+    add_route(conn, 2)
+    conn.execute("DELETE FROM routes WHERE host = %s", (f"t1.{DOMAIN}",))
+    v2 = build_version(conn, Signer.generate(), domain=DOMAIN)
+    assert v2 and f"t1.{DOMAIN}" not in v2.body
+    gw = DbGateways(Settings(), poll_interval=0.02)
+    host = f"t1.{DOMAIN}"
+    conn.execute("INSERT INTO gateway_status (gateway, live_version) VALUES ('gw-a', 2),"
+                 " ('gw-b', 1)")
+    with pytest.raises(TimeoutError):  # gw-b still serves v1, which has the route
+        gw.wait_for_route_removed(conn, host, timeout=0.2)
+    conn.execute("UPDATE gateway_status SET live_version = 2 WHERE gateway = 'gw-b'")
+    gw.wait_for_route_removed(conn, host, timeout=1)
