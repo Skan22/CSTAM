@@ -1,0 +1,15 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: bash -c 'cd control-plane && uv run ruff check .'
+        language: system
+        pass_filenames: false
+        files: ^control-plane/
+      - id: mypy
+        name: mypy
+        entry: bash -c 'cd control-plane && uv run mypy'
+        language: system
+        pass_filenames: false
+        files: ^control-plane/

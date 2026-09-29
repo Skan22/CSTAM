@@ -1,0 +1,29 @@
+# Single source of truth for every layer (Pulumi, Ansible, control plane, agents).
+# Validated against platform.schema.json in CI and at runtime.
+domain: cstam.felcloud.tn
+ip_pool:
+  cidr: 10.20.0.0/24        # sandbox-net; DHCP off, allocation pool == this range
+  first: 10.20.0.10
+  last: 10.20.0.109         # 100 addresses
+  reserved: []              # addresses Neutron owns inside the range (gateway, DHCP, router ports)
+pool:
+  target_size: 5            # warm-pool target; re-set from M0 boot-time measurement
+  max_parallel_boots: 3
+  reserve_free_ips: 5       # quota guard: refuse registration below this many free IPs
+lease:
+  ttl_seconds: 7200
+  quarantine_seconds: 60
+vrrp:
+  advert_interval_seconds: 0.2
+  priority_a: 150
+  priority_b: 100
+  check_interval_seconds: 1
+flavors:
+  gateway: m1.small
+  control_plane: m1.small
+  sandbox: m1.tiny
+  relay: m1.tiny
+  bastion: m1.tiny
+images:
+  base: debian-12
+  sandbox: ipo-sandbox-v1

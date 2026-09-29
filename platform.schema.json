@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://felcloud.tn/ipo/platform.schema.json",
+  "title": "Platform configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["domain", "ip_pool", "pool", "lease", "vrrp", "flavors", "images"],
+  "properties": {
+    "domain": {"type": "string", "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$"},
+    "ip_pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cidr", "first", "last"],
+      "properties": {
+        "cidr": {"type": "string", "format": "ipv4-cidr"},
+        "first": {"type": "string", "format": "ipv4"},
+        "last": {"type": "string", "format": "ipv4"},
+        "reserved": {"type": "array", "items": {"type": "string", "format": "ipv4"}, "uniqueItems": true}
+      }
+    },
+    "pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_size", "max_parallel_boots", "reserve_free_ips"],
+      "properties": {
+        "target_size": {"type": "integer", "minimum": 0, "maximum": 100},
+        "max_parallel_boots": {"type": "integer", "minimum": 1, "maximum": 20},
+        "reserve_free_ips": {"type": "integer", "minimum": 0}
+      }
+    },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ttl_seconds", "quarantine_seconds"],
+      "properties": {
+        "ttl_seconds": {"type": "integer", "minimum": 60},
+        "quarantine_seconds": {"type": "integer", "minimum": 0}
+      }
+    },
+    "vrrp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["advert_interval_seconds", "priority_a", "priority_b", "check_interval_seconds"],
+      "properties": {
+        "advert_interval_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 2},
+        "priority_a": {"type": "integer", "minimum": 1, "maximum": 254},
+        "priority_b": {"type": "integer", "minimum": 1, "maximum": 254},
+        "check_interval_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "flavors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gateway", "control_plane", "sandbox", "relay", "bastion"],
+      "properties": {
+        "gateway": {"type": "string"}, "control_plane": {"type": "string"},
+        "sandbox": {"type": "string"}, "relay": {"type": "string"}, "bastion": {"type": "string"}
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "sandbox"],
+      "properties": {"base": {"type": "string"}, "sandbox": {"type": "string"}}
+    }
+  }
+}
