@@ -399,13 +399,15 @@ def test_heartbeat_records_state_and_version_and_announces_a_change(api: Api) ->
         assert beat("BACKUP", 3).status_code == 204
         assert beat("BACKUP", 4).status_code == 204
         assert beat("MASTER", 4).status_code == 204
-        seen = [json.loads(n.payload) for n in listener.notifies(timeout=0.5, stop_after=2)]
+        seen = [json.loads(n.payload) for n in listener.notifies(timeout=0.5, stop_after=4)]
     body = api.client.get("/v1/gateways", headers=api.h("viewer")).json()
     gw = next(g for g in body["gateways"] if g["gateway"] == "gw-a")
     assert gw["vrrp_state"] == "MASTER" and gw["live_version"] == 4 and gw["last_heartbeat"]
-    # only transitions are announced, not every beat
-    assert [(e["kind"], e["to"]) for e in seen] == [("gateway.vrrp", "BACKUP"),
-                                                    ("gateway.vrrp", "MASTER")]
+    # only changes are announced, not every beat: the first sighting (version and state), the
+    # version moving 3 -> 4, and the state moving BACKUP -> MASTER
+    assert [(e["kind"], e["to"]) for e in seen] == [
+        ("gateway.config", 3), ("gateway.vrrp", "BACKUP"), ("gateway.config", 4),
+        ("gateway.vrrp", "MASTER")]
 
 
 def test_heartbeat_rejects_unknown_gateways_and_bad_bodies(api: Api) -> None:
@@ -607,3 +609,14 @@ def test_every_operation_documents_its_role_and_errors() -> None:
             continue
         for op in ops.values():
             assert "401" in op["responses"] and op["security"], path
+
+
+def test_a_zero_version_heartbeat_does_not_erase_the_known_version(api: Api) -> None:
+    def beat(version: int) -> Any:
+        return api.client.post("/v1/gateways/gw-a/heartbeat", headers=api.h("operator"),
+                               json={"vrrp_state": "BACKUP", "live_version": version})
+
+    assert beat(4).status_code == 204
+    assert beat(0).status_code == 204
+    body = api.client.get("/v1/gateways", headers=api.h("viewer")).json()
+    assert next(g for g in body["gateways"] if g["gateway"] == "gw-a")["live_version"] == 4

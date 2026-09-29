@@ -158,3 +158,30 @@ def test_app_role_cannot_update_audit_log(conn: psycopg.Connection) -> None:
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         conn.execute("UPDATE audit_log SET actor = 'x'")
     conn.execute("RESET ROLE")
+
+
+def test_lease_state_changes_are_announced_for_the_dashboard(conn: psycopg.Connection) -> None:
+    import json
+
+    _seed(conn)
+    conn.execute("LISTEN ipo_events")
+    conn.execute("UPDATE leases SET state = 'pooled'")
+    conn.execute("UPDATE leases SET server_id = 'srv-1'")  # not a state change: silent
+    conn.execute("UPDATE leases SET state = 'draining'")
+    seen = [json.loads(n.payload) for n in conn.notifies(timeout=0.5, stop_after=2)]
+    assert seen == [
+        {"kind": "lease.changed", "ip": "10.20.0.10", "from": "free", "to": "pooled"},
+        {"kind": "lease.changed", "ip": "10.20.0.10", "from": "pooled", "to": "draining"},
+    ]
+
+
+def test_a_gateways_config_version_change_is_announced(conn: psycopg.Connection) -> None:
+    import json
+
+    conn.execute("INSERT INTO gateway_status (gateway, vrrp_state, live_version)"
+                 " VALUES ('gw-a', 'MASTER', 3)")
+    conn.execute("LISTEN ipo_events")
+    conn.execute("UPDATE gateway_status SET live_version = 3, last_heartbeat = now()")  # silent
+    conn.execute("UPDATE gateway_status SET live_version = 4")
+    seen = [json.loads(n.payload) for n in conn.notifies(timeout=0.5, stop_after=1)]
+    assert seen == [{"kind": "gateway.config", "gateway": "gw-a", "from": 3, "to": 4}]

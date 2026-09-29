@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Palette as tokens so the light and dark themes are one swap. Sized and contrasted to stay
+   readable on a projector: no thin grey-on-white text. */
+@theme {
+  --color-bg: #f3f5f8;
+  --color-surface: #ffffff;
+  --color-raised: #eef1f5;
+  --color-line: #c9d1dc;
+  --color-ink: #0f1723;
+  --color-muted: #47546a;
+  --color-accent: #1d4ed8;
+  --color-accent-ink: #ffffff;
+  --color-good: #0b7a4b;
+  --color-warn: #a15c00;
+  --color-bad: #b42318;
+  --color-info: #0a6c96;
+  --color-good-bg: #d9f3e6;
+  --color-warn-bg: #fdebc8;
+  --color-bad-bg: #fde0dc;
+  --color-info-bg: #d6ecf6;
+  --color-idle-bg: #e3e8ef;
+  --color-violet: #6d3fc0;
+  --color-violet-bg: #e9e0fa;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0b1017;
+  --color-surface: #131a24;
+  --color-raised: #1b2431;
+  --color-line: #33415a;
+  --color-ink: #f1f5fb;
+  --color-muted: #a9b6ca;
+  --color-accent: #6ea0ff;
+  --color-accent-ink: #061024;
+  --color-good: #4fd69a;
+  --color-warn: #f2b45a;
+  --color-bad: #ff8a7d;
+  --color-info: #62c3ec;
+  --color-good-bg: #0f3a2a;
+  --color-warn-bg: #43310d;
+  --color-bad-bg: #4a1a16;
+  --color-info-bg: #0e3345;
+  --color-idle-bg: #232d3b;
+  --color-violet: #b99cf5;
+  --color-violet-bg: #342458;
+}
+
+html {
+  font-size: 17px;
+}
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}

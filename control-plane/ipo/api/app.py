@@ -394,7 +394,8 @@ def create_app(deps: AppDeps) -> FastAPI:
             conn.execute(
                 "INSERT INTO gateway_status (gateway, vrrp_state, live_version, last_heartbeat)"
                 " VALUES (%s, %s, %s, now()) ON CONFLICT (gateway) DO UPDATE SET"
-                " vrrp_state = EXCLUDED.vrrp_state, live_version = EXCLUDED.live_version,"
+                " vrrp_state = EXCLUDED.vrrp_state,"
+                " live_version = COALESCE(EXCLUDED.live_version, gateway_status.live_version),"
                 " last_heartbeat = now()", (name, body.vrrp_state, body.live_version or None))
             if (prev[0] if prev else None) != body.vrrp_state:
                 events.emit(conn, "gateway.vrrp", gateway=name, to=body.vrrp_state,
