@@ -21,6 +21,10 @@ SAGA_STEP_DURATION = Histogram(
 SAGA_JOBS = Counter(
     "ipo_saga_jobs_total", "Jobs that reached a final outcome", ["kind", "outcome"])
 
+PROVISION_DURATION = Histogram(
+    "ipo_provision_duration_seconds", "Registration request to active team", ["path"],
+    buckets=(0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300))
+
 LEASE_STATES = ("free", "pooled", "leased", "draining", "quarantined")
 TEAM_STATES = ("pending", "active", "draining", "deleted", "failed")
 

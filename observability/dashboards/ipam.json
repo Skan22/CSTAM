@@ -1,0 +1,102 @@
+{
+  "uid": "ipam",
+  "title": "IPO IPAM",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "tags": [
+    "ipo"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Addresses by state",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "ipo_ip_addresses",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 2,
+      "title": "Quarantined",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "ipo_ip_addresses{state=\"quarantined\"}",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 3,
+      "title": "Reconciler repairs by rule",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (rule) (increase(ipo_reconciler_repairs_total[10m]))",
+          "refId": "A",
+          "legendFormat": "{{rule}}"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 4,
+      "title": "Warm pool",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "ipo_pool_size",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    }
+  ]
+}

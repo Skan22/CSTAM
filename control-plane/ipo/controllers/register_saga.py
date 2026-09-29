@@ -11,6 +11,7 @@ from typing import Any, Protocol
 
 import psycopg
 
+from ipo import metrics
 from ipo.adapters.openstack.base import TAG, Cloud, port_name, server_name
 from ipo.controllers.saga import Hook, Job, SagaRunner, Step
 from ipo.domain import events, leases
@@ -182,6 +183,11 @@ class Activate:
                          (job.team_id,))
             events.emit(conn, "team.active", team_id=job.team_id, slug=job.payload["slug"],
                         ip=job.payload["ip"], host=job.payload["host"])
+            age = conn.execute(
+                "SELECT extract(epoch FROM clock_timestamp() - created_at) FROM jobs"
+                " WHERE id = %s", (job.id,)).fetchone()
+        if age:
+            metrics.PROVISION_DURATION.labels(job.payload["path"]).observe(float(age[0]))
         return None
 
     def undo(self, conn: psycopg.Connection, job: Job) -> None:

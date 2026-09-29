@@ -210,3 +210,12 @@ def test_saga_metrics_count_compensation(dsn: str) -> None:
     _break("probe", env, gw, pr)
     assert runner(env, gw, pr).run_once() == "compensated"
     assert _sample("ipo_saga_jobs_total", kind="register_team", outcome="compensated") == before + 1
+
+
+@pytest.mark.parametrize("warm", [True, False], ids=["warm", "cold"])
+def test_provision_duration_is_recorded_by_path(dsn: str, warm: bool) -> None:
+    path = "warm" if warm else "cold"
+    env, _, gw, pr = setup(dsn, warm=warm)
+    before = _sample("ipo_provision_duration_seconds_count", path=path)
+    assert runner(env, gw, pr).run_once() == "succeeded"
+    assert _sample("ipo_provision_duration_seconds_count", path=path) == before + 1

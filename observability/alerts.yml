@@ -1,0 +1,76 @@
+# Prometheus alert rules. Not yet loaded into a real Prometheus (no promtool or stack available
+# where this was written); tests/test_observability.py checks structure and metric names.
+groups:
+  - name: ipo
+    rules:
+      - alert: IPOGatewayVersionSkew
+        expr: max(ipo_config_live_version) - min(ipo_config_live_version) > 0
+        for: 1m
+        labels: {severity: page}
+        annotations:
+          summary: The two gateways run different config versions
+          runbook: docs/runbooks/alerts.md#ipogatewayversionskew
+
+      - alert: IPOConfigRolledBack
+        expr: increase(ipo_agent_rollbacks_total[5m]) > 0
+        for: 0m
+        labels: {severity: warn}
+        annotations:
+          summary: A gateway rolled back a pushed config
+          runbook: docs/runbooks/alerts.md#ipoconfigrolledback
+
+      - alert: IPOConfigSignatureRejected
+        expr: increase(ipo_agent_config_rejected_total{reason="signature"}[5m]) > 0
+        for: 0m
+        labels: {severity: page}
+        annotations:
+          summary: A gateway refused a config with a bad signature
+          runbook: docs/runbooks/alerts.md#ipoconfigsignaturerejected
+
+      - alert: IPOGatewayFlapping
+        expr: increase(ipo_agent_vrrp_transitions_total[2m]) > 3
+        for: 0m
+        labels: {severity: page}
+        annotations:
+          summary: A gateway changed VRRP state more than three times in two minutes
+          runbook: docs/runbooks/alerts.md#ipogatewayflapping
+
+      - alert: IPOWarmPoolLow
+        expr: ipo_pool_size < 0.5 * ipo_pool_target
+        for: 2m
+        labels: {severity: warn}
+        annotations:
+          summary: The warm pool is under half of its target
+          runbook: docs/runbooks/alerts.md#ipowarmpoollow
+
+      - alert: IPOFreeAddressesLow
+        expr: ipo_ip_addresses{state="free"} < 2
+        for: 2m
+        labels: {severity: warn}
+        annotations:
+          summary: Fewer than two free addresses are left in the sandbox range
+          runbook: docs/runbooks/alerts.md#ipofreeaddresseslow
+
+      - alert: IPOSagaJobsFailing
+        expr: increase(ipo_saga_jobs_total{outcome=~"failed|compensated"}[10m]) > 0
+        for: 0m
+        labels: {severity: warn}
+        annotations:
+          summary: Registration or teardown jobs are failing or being compensated
+          runbook: docs/runbooks/alerts.md#iposagajobsfailing
+
+      - alert: IPOReconcilerRepairing
+        expr: increase(ipo_reconciler_repairs_total[10m]) > 0
+        for: 0m
+        labels: {severity: warn}
+        annotations:
+          summary: The reconciler repaired drift, so something diverged from the database
+          runbook: docs/runbooks/alerts.md#iporeconcilerrepairing
+
+      - alert: IPOProvisioningSlow
+        expr: histogram_quantile(0.95, sum by (le, path) (rate(ipo_provision_duration_seconds_bucket[10m]))) > 60
+        for: 5m
+        labels: {severity: warn}
+        annotations:
+          summary: The 95th percentile registration time is over 60 seconds
+          runbook: docs/runbooks/alerts.md#ipoprovisioningslow
