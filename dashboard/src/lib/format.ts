@@ -19,3 +19,20 @@ export function ago(iso: string | null | undefined, now: number): string {
 export function clock(iso: string | number): string {
   return new Date(iso).toLocaleTimeString([], { hour12: false });
 }
+
+export function bytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(1)} ${units[i]}`;
+}
+
+export function pct(part: number, whole: number): string {
+  if (!whole) return "0%";
+  const v = (part / whole) * 100;
+  return `${v >= 10 || Number.isInteger(v) ? Math.round(v) : v.toFixed(1)}%`;
+}
+
+export const count = (n: number): string => n.toLocaleString("en-US");

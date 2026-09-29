@@ -591,6 +591,79 @@
           }
         }
       ]
+    },
+    {
+      "name": "traffic",
+      "item": [
+        {
+          "name": "Report Traffic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/gateways/:name/traffic",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "gateways",
+                ":name",
+                "traffic"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"hosts\": [],\n  \"recent\": []\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Traffic",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/traffic",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "traffic"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Recent Traffic",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/traffic/recent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "traffic",
+                "recent"
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

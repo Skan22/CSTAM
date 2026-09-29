@@ -357,6 +357,63 @@
         "title": "Heartbeat",
         "type": "object"
       },
+      "HostTraffic": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 0.0,
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "duration_ms_sum": {
+            "minimum": 0.0,
+            "title": "Duration Ms Sum",
+            "type": "integer"
+          },
+          "host": {
+            "maxLength": 253,
+            "title": "Host",
+            "type": "string"
+          },
+          "requests": {
+            "minimum": 0.0,
+            "title": "Requests",
+            "type": "integer"
+          },
+          "s2xx": {
+            "minimum": 0.0,
+            "title": "S2Xx",
+            "type": "integer"
+          },
+          "s3xx": {
+            "minimum": 0.0,
+            "title": "S3Xx",
+            "type": "integer"
+          },
+          "s4xx": {
+            "minimum": 0.0,
+            "title": "S4Xx",
+            "type": "integer"
+          },
+          "s5xx": {
+            "minimum": 0.0,
+            "title": "S5Xx",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host",
+          "requests",
+          "s2xx",
+          "s3xx",
+          "s4xx",
+          "s5xx",
+          "bytes",
+          "duration_ms_sum"
+        ],
+        "title": "HostTraffic",
+        "type": "object"
+      },
       "Ipam": {
         "properties": {
           "counts": {
@@ -581,6 +638,118 @@
           "quarantined"
         ],
         "title": "Pool",
+        "type": "object"
+      },
+      "RecentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "host": {
+            "maxLength": 253,
+            "title": "Host",
+            "type": "string"
+          },
+          "method": {
+            "maxLength": 16,
+            "title": "Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path only: query strings are never kept",
+            "maxLength": 200,
+            "title": "Path",
+            "type": "string"
+          },
+          "status": {
+            "maximum": 599.0,
+            "minimum": 100.0,
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "host",
+          "method",
+          "path",
+          "status",
+          "duration_ms"
+        ],
+        "title": "RecentRequest",
+        "type": "object"
+      },
+      "RecentTraffic": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "gateway": {
+            "title": "Gateway",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "gateway",
+          "host",
+          "slug",
+          "method",
+          "path",
+          "status",
+          "duration_ms"
+        ],
+        "title": "RecentTraffic",
+        "type": "object"
+      },
+      "RecentTrafficList": {
+        "properties": {
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/RecentTraffic"
+            },
+            "title": "Requests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "requests"
+        ],
+        "title": "RecentTrafficList",
         "type": "object"
       },
       "RegisterRequest": {
@@ -905,6 +1074,78 @@
         "title": "Team",
         "type": "object"
       },
+      "TeamTraffic": {
+        "properties": {
+          "avg_ms": {
+            "title": "Avg Ms",
+            "type": "number"
+          },
+          "bytes": {
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "last_seen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen"
+          },
+          "requests": {
+            "title": "Requests",
+            "type": "integer"
+          },
+          "s2xx": {
+            "title": "S2Xx",
+            "type": "integer"
+          },
+          "s3xx": {
+            "title": "S3Xx",
+            "type": "integer"
+          },
+          "s4xx": {
+            "title": "S4Xx",
+            "type": "integer"
+          },
+          "s5xx": {
+            "title": "S5Xx",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "team_id": {
+            "format": "uuid",
+            "title": "Team Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "team_id",
+          "slug",
+          "host",
+          "requests",
+          "s2xx",
+          "s3xx",
+          "s4xx",
+          "s5xx",
+          "bytes",
+          "avg_ms",
+          "last_seen"
+        ],
+        "title": "TeamTraffic",
+        "type": "object"
+      },
       "Teardown": {
         "properties": {
           "job_id": {
@@ -956,6 +1197,137 @@
           "role"
         ],
         "title": "Token",
+        "type": "object"
+      },
+      "Traffic": {
+        "properties": {
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/TrafficPoint"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamTraffic"
+            },
+            "title": "Teams",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/TrafficTotals"
+          },
+          "window_minutes": {
+            "title": "Window Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_minutes",
+          "totals",
+          "teams",
+          "series"
+        ],
+        "title": "Traffic",
+        "type": "object"
+      },
+      "TrafficPoint": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "errors": {
+            "description": "5xx responses",
+            "title": "Errors",
+            "type": "integer"
+          },
+          "requests": {
+            "title": "Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "requests",
+          "errors"
+        ],
+        "title": "TrafficPoint",
+        "type": "object"
+      },
+      "TrafficReport": {
+        "additionalProperties": false,
+        "description": "Counters an agent read from the Traefik access log since its last report.",
+        "properties": {
+          "dropped": {
+            "default": 0,
+            "description": "Requests for hosts beyond the agent's cap",
+            "minimum": 0.0,
+            "title": "Dropped",
+            "type": "integer"
+          },
+          "hosts": {
+            "items": {
+              "$ref": "#/components/schemas/HostTraffic"
+            },
+            "maxItems": 500,
+            "title": "Hosts",
+            "type": "array"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/RecentRequest"
+            },
+            "maxItems": 200,
+            "title": "Recent",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hosts",
+          "recent"
+        ],
+        "title": "TrafficReport",
+        "type": "object"
+      },
+      "TrafficTotals": {
+        "properties": {
+          "bytes": {
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "requests": {
+            "title": "Requests",
+            "type": "integer"
+          },
+          "s2xx": {
+            "title": "S2Xx",
+            "type": "integer"
+          },
+          "s3xx": {
+            "title": "S3Xx",
+            "type": "integer"
+          },
+          "s4xx": {
+            "title": "S4Xx",
+            "type": "integer"
+          },
+          "s5xx": {
+            "title": "S5Xx",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requests",
+          "s2xx",
+          "s3xx",
+          "s4xx",
+          "s5xx",
+          "bytes"
+        ],
+        "title": "TrafficTotals",
         "type": "object"
       },
       "ValidationError": {
@@ -1598,6 +1970,66 @@
         ]
       }
     },
+    "/v1/gateways/{name}/traffic": {
+      "post": {
+        "description": "Sent by each gateway agent every few seconds with what Traefik served.",
+        "operationId": "report_traffic_v1_gateways__name__traffic_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrafficReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid token"
+          },
+          "403": {
+            "description": "Role too low"
+          },
+          "404": {
+            "description": "Unknown gateway"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report Traffic",
+        "tags": [
+          "traffic"
+        ]
+      }
+    },
     "/v1/ipam": {
       "get": {
         "operationId": "ipam_v1_ipam_get",
@@ -2145,6 +2577,136 @@
         "summary": "Extend Team",
         "tags": [
           "teams"
+        ]
+      }
+    },
+    "/v1/traffic": {
+      "get": {
+        "description": "Requests, errors, bytes and latency per team over the window, busiest first.",
+        "operationId": "get_traffic_v1_traffic_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window_minutes",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 1440,
+              "minimum": 1,
+              "title": "Window Minutes",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Traffic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid token"
+          },
+          "403": {
+            "description": "Role too low"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Traffic",
+        "tags": [
+          "traffic"
+        ]
+      }
+    },
+    "/v1/traffic/recent": {
+      "get": {
+        "operationId": "get_recent_traffic_v1_traffic_recent_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 253,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentTrafficList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid token"
+          },
+          "403": {
+            "description": "Role too low"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Recent Traffic",
+        "tags": [
+          "traffic"
         ]
       }
     }

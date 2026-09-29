@@ -4,6 +4,7 @@ import { Gateways } from "./Gateways";
 import { Overview } from "./Overview";
 import { Settings } from "./Settings";
 import { Teams } from "./Teams";
+import { Traffic } from "./Traffic";
 import { FakeSource, json, mockApi, renderLive, signIn } from "../test-utils";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -215,5 +216,71 @@ describe("Settings", () => {
     await userEvent.type(input, "8");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(api.calls.find((c) => c.key === "PATCH /v1/settings")?.body).toEqual({ pool_target: 8 }));
+  });
+});
+
+describe("Traffic", () => {
+  const row = (o: object = {}) => ({ team_id: "t1", slug: "alpha", host: "alpha.hack.example", requests: 200, s2xx: 190, s3xx: 0, s4xx: 6, s5xx: 4, bytes: 2048, avg_ms: 12.4, last_seen: inFuture(-5), ...o });
+  const summary = (teams = [row(), row({ team_id: "t2", slug: "beta", host: "beta.hack.example", requests: 0, s2xx: 0, s4xx: 0, s5xx: 0, bytes: 0, avg_ms: 0, last_seen: null })]) => ({
+    window_minutes: 60,
+    totals: { requests: 200, s2xx: 190, s3xx: 0, s4xx: 6, s5xx: 4, bytes: 2048 },
+    teams,
+    series: [{ at: inFuture(-120), requests: 80, errors: 1 }, { at: inFuture(-60), requests: 120, errors: 3 }],
+  });
+
+  test("shows what each team is getting, busiest first, with error rates", async () => {
+    await signIn("viewer");
+    mockApi({ "GET /v1/traffic": summary() });
+    renderLive(<Traffic />);
+    const alpha = (await screen.findByText("alpha.hack.example")).closest("tr")!;
+    expect(within(alpha).getByText("200")).toBeInTheDocument();
+    expect(within(alpha).getByText("2%")).toBeInTheDocument(); // 5xx share
+    expect(within(alpha).getByText("2.0 KB")).toBeInTheDocument();
+    expect(within(alpha).getByText("12 ms")).toBeInTheDocument();
+    const beta = screen.getByText("beta.hack.example").closest("tr")!;
+    expect(within(beta).getByText("no traffic")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /requests per minute/i })).toBeInTheDocument();
+  });
+
+  test("changing the window asks the API for it", async () => {
+    await signIn("viewer");
+    const api = mockApi({ "GET /v1/traffic": summary() });
+    renderLive(<Traffic />);
+    await screen.findByText("alpha.hack.example");
+    await userEvent.click(screen.getByRole("button", { name: "24 h" }));
+    await waitFor(() => expect(api.calls.some((c) => c.key === "GET /v1/traffic" && c.query.get("window_minutes") === "1440")).toBe(true));
+  });
+
+  test("picking a team lists its latest requests", async () => {
+    await signIn("viewer");
+    const api = mockApi({
+      "GET /v1/traffic": summary(),
+      "GET /v1/traffic/recent": { requests: [{ at: inFuture(-3), gateway: "gw1", host: "alpha.hack.example", slug: "alpha", method: "POST", path: "/api/login", status: 502, duration_ms: 31 }] },
+    });
+    renderLive(<Traffic />);
+    await userEvent.click(await screen.findByRole("button", { name: /alpha.hack.example/ }));
+    expect(await screen.findByText("/api/login")).toBeInTheDocument();
+    expect(screen.getByText("502")).toBeInTheDocument();
+    expect(api.calls.find((c) => c.key === "GET /v1/traffic/recent")?.query.get("host")).toBe("alpha.hack.example");
+  });
+
+  test("a batch from a gateway refreshes the numbers", async () => {
+    await signIn("viewer");
+    let n = 200;
+    const api = mockApi({ "GET /v1/traffic": () => json(summary([row({ requests: n })])) });
+    renderLive(<Traffic />);
+    const table = await screen.findByRole("table");
+    await within(table).findByText("200");
+    n = 350;
+    act(() => FakeSource.last!.emit("traffic.batch", { gateway: "gw1", requests: 150, hosts: ["alpha.hack.example"] }));
+    expect(await within(table).findByText("350")).toBeInTheDocument();
+    expect(api.count("GET /v1/traffic")).toBeGreaterThan(1);
+  });
+
+  test("says so when nobody has sent a request", async () => {
+    await signIn("viewer");
+    mockApi({ "GET /v1/traffic": { ...summary([]), totals: { requests: 0, s2xx: 0, s3xx: 0, s4xx: 0, s5xx: 0, bytes: 0 }, series: [] } });
+    renderLive(<Traffic />);
+    expect(await screen.findByText(/No teams are registered/)).toBeInTheDocument();
   });
 });

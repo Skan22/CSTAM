@@ -13,6 +13,7 @@ import (
 
 	"github.com/felcloud/ipo/gateway-agent/internal/signing"
 	"github.com/felcloud/ipo/gateway-agent/internal/trace"
+	"github.com/felcloud/ipo/gateway-agent/internal/traffic"
 )
 
 type fakeAPI struct {
@@ -20,6 +21,7 @@ type fakeAPI struct {
 	logins     int32
 	validToken string
 	beats      []map[string]any
+	traffic    []map[string]any
 	latest     *signing.Envelope
 }
 
@@ -60,6 +62,15 @@ func (f *fakeAPI) handler() http.Handler {
 		f.mu.Unlock()
 		w.WriteHeader(200)
 	}))
+	mux.HandleFunc("POST /v1/gateways/{name}/traffic", authed(func(w http.ResponseWriter, r *http.Request) {
+		var in map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		in["gateway"] = r.PathValue("name")
+		f.mu.Lock()
+		f.traffic = append(f.traffic, in)
+		f.mu.Unlock()
+		w.WriteHeader(204)
+	}))
 	mux.HandleFunc("GET /v1/config/latest", authed(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -86,6 +97,18 @@ func TestHeartbeatLogsInAndReports(t *testing.T) {
 	}
 	if len(f.beats) != 1 || f.beats[0]["vrrp_state"] != "MASTER" || f.beats[0]["live_version"] != float64(7) || f.beats[0]["gateway"] != "gw-a" {
 		t.Fatalf("beats %v", f.beats)
+	}
+}
+
+func TestTrafficBatchesArePostedForThisGateway(t *testing.T) {
+	f, c := setup(t)
+	err := c.PostTraffic(context.Background(), traffic.Batch{Hosts: []traffic.HostStats{{Host: "a.x", Requests: 3}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hosts := f.traffic[0]["hosts"].([]any)
+	if f.traffic[0]["gateway"] != "gw-a" || hosts[0].(map[string]any)["requests"] != float64(3) {
+		t.Fatalf("got %v", f.traffic)
 	}
 }
 

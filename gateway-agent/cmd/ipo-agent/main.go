@@ -26,6 +26,7 @@ import (
 	"github.com/felcloud/ipo/gateway-agent/internal/server"
 	"github.com/felcloud/ipo/gateway-agent/internal/signing"
 	"github.com/felcloud/ipo/gateway-agent/internal/trace"
+	"github.com/felcloud/ipo/gateway-agent/internal/traffic"
 	"github.com/felcloud/ipo/gateway-agent/internal/vrrp"
 )
 
@@ -129,6 +130,16 @@ func run(ctx context.Context, get func(string) string) error {
 			Apply:  pipe.Apply, Version: pipe.Version, State: mon.State, Logf: log.Printf,
 		}
 		go loop.Run(ctx, hbEvery, pullEvery)
+
+		if logPath := env(get, "IPO_ACCESS_LOG", "/var/log/traefik/access.log"); logPath != "off" {
+			every, err := seconds(get, "IPO_TRAFFIC_SECONDS", 10)
+			if err != nil {
+				return err
+			}
+			rep := &traffic.Reporter{Path: logPath, Every: every, Poll: 250 * time.Millisecond,
+				Send: loop.Client.PostTraffic, Agg: traffic.NewAggregator(500, 50), Logf: log.Printf}
+			go rep.Run(ctx)
+		}
 	}
 
 	errc := make(chan error, 1)

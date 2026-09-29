@@ -10,9 +10,10 @@ import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
 import { Teams } from "./pages/Teams";
+import { Traffic } from "./pages/Traffic";
 
 const PAGES: Record<string, () => React.JSX.Element> = {
-  overview: Overview, teams: Teams, gateways: Gateways, ipam: Ipam, audit: Audit, settings: Settings,
+  overview: Overview, teams: Teams, gateways: Gateways, traffic: Traffic, ipam: Ipam, audit: Audit, settings: Settings,
 };
 
 function useRoute(): string {

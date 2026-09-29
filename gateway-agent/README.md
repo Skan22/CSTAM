@@ -37,8 +37,17 @@ front of an in-process fake Traefik, for tests and demos:
     go test -race ./...
     go run ./cmd/dev-gateway -pubkey <base64 ed25519 public key>
 
-`deploy/` holds example Traefik, keepalived and systemd files. They have **not** been run against
-real Traefik or keepalived.
+The deploy files live in `ansible/` (roles `traefik`, `keepalived`, `gw_agent`); `tests/` runs the
+agent against real Traefik and keepalived in a network-namespace lab (`python -m chaos.run`).
+
+## Traffic
+
+When `IPO_CP_URL` is set the agent tails Traefik's JSON access log (`IPO_ACCESS_LOG`), counts
+requests per host and POSTs a batch to `/v1/gateways/{name}/traffic` every `IPO_TRAFFIC_SECONDS`
+(default 10). A failed POST is re-queued and counted again next time, within a bounded memory
+budget (excess hosts are dropped and reported as `dropped`). The canary's own probes are ignored.
+Only host, method, path (no query), status, size and duration are read; client addresses, query
+strings and headers are never sent.
 
 ## Known limits
 

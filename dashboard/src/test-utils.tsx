@@ -11,13 +11,13 @@ export type Route = (req: Request, body: unknown) => Response | Promise<Response
 
 /** Replaces fetch with a router keyed by "METHOD /path"; records what was called. */
 export function mockApi(routes: Record<string, Route | unknown>) {
-  const calls: { key: string; body: unknown; headers: Headers }[] = [];
+  const calls: { key: string; body: unknown; headers: Headers; query: URLSearchParams }[] = [];
   vi.stubGlobal("fetch", async (input: Request | string, init?: RequestInit) => {
     const req = input instanceof Request ? input : new Request(new URL(String(input), "http://x"), init);
     const text = req.method === "GET" ? "" : await req.clone().text();
     const body = text ? JSON.parse(text) : undefined;
     const key = `${req.method} ${new URL(req.url).pathname}`;
-    calls.push({ key, body, headers: req.headers });
+    calls.push({ key, body, headers: req.headers, query: new URL(req.url).searchParams });
     const r = routes[key];
     if (r === undefined) return json({ detail: `no mock for ${key}` }, 500);
     if (typeof r === "function") return (await (r as Route)(req, body)) ?? json({});

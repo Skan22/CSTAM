@@ -23,7 +23,7 @@ from ipo.api import auth, models, users
 from ipo.api.auth import Principal
 from ipo.api.problem import Problem, install
 from ipo.controllers import compiler
-from ipo.domain import events, gateways, leases
+from ipo.domain import events, gateways, leases, traffic
 from ipo.domain.registration import (
     IdempotencyConflict,
     PoolExhausted,
@@ -415,6 +415,30 @@ def create_app(deps: AppDeps) -> FastAPI:
             elif len(now) <= 1 < len(was):
                 events.emit(conn, "gateway.split_brain_resolved", masters=now)
         return Response(status_code=204)
+
+    # ---------------------------------------------------------- traffic
+    @app.post("/v1/gateways/{name}/traffic", tags=["traffic"], status_code=204,
+              response_class=Response, responses={404: {"description": "Unknown gateway"}})
+    def report_traffic(name: str, body: models.TrafficReport, _: Principal = operator,
+                       conn: psycopg.Connection = Db) -> Response:
+        """Sent by each gateway agent every few seconds with what Traefik served."""
+        if name not in deps.settings.gateways:
+            raise Problem(404, "not-found", "Not Found", f"gateway {name} is not configured")
+        traffic.ingest(conn, name, [h.model_dump() for h in body.hosts],
+                       [r.model_dump(mode="json") for r in body.recent])
+        return Response(status_code=204)
+
+    @app.get("/v1/traffic", tags=["traffic"], response_model=models.Traffic)
+    def get_traffic(window_minutes: int = Query(60, ge=1, le=1440), _: Principal = viewer,
+                    conn: psycopg.Connection = Db) -> dict[str, Any]:
+        """Requests, errors, bytes and latency per team over the window, busiest first."""
+        return traffic.summary(conn, window_minutes)
+
+    @app.get("/v1/traffic/recent", tags=["traffic"], response_model=models.RecentTrafficList)
+    def get_recent_traffic(host: str | None = Query(None, max_length=253),
+                           limit: int = Query(50, ge=1, le=200), _: Principal = viewer,
+                           conn: psycopg.Connection = Db) -> dict[str, Any]:
+        return {"requests": traffic.recent(conn, limit, host=host.lower() if host else None)}
 
     # ----------------------------------------------------------- config
     @app.get("/v1/config/latest", tags=["config"], response_model=models.ConfigEnvelope,

@@ -14,6 +14,7 @@ export const ROUTES: Route[] = [
   { path: "overview", label: "Overview", min: "viewer" },
   { path: "teams", label: "Teams", min: "viewer" },
   { path: "gateways", label: "Gateways", min: "viewer" },
+  { path: "traffic", label: "Traffic", min: "viewer" },
   { path: "ipam", label: "IPAM", min: "viewer" },
   { path: "audit", label: "Audit", min: "admin" },
   { path: "settings", label: "Settings", min: "admin" },

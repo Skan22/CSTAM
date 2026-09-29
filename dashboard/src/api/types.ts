@@ -19,3 +19,9 @@ export async function must<T>(p: Promise<{ data?: T; error?: unknown }>): Promis
   if (r.data === undefined) throw new Error(describeError(r.error));
   return r.data;
 }
+
+export type Traffic = S["Traffic"];
+export type TrafficPoint = S["TrafficPoint"];
+export type TrafficTotals = S["TrafficTotals"];
+export type TeamTraffic = S["TeamTraffic"];
+export type RecentRequest = S["RecentTraffic"];

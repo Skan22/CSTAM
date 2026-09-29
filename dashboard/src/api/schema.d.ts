@@ -231,6 +231,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/gateways/{name}/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Traffic
+         * @description Sent by each gateway agent every few seconds with what Traefik served.
+         */
+        post: operations["report_traffic_v1_gateways__name__traffic_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ipam": {
         parameters: {
             query?: never;
@@ -347,6 +367,43 @@ export interface paths {
         put?: never;
         /** Extend Team */
         post: operations["extend_team_v1_teams__team_id__extend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Traffic
+         * @description Requests, errors, bytes and latency per team over the window, busiest first.
+         */
+        get: operations["get_traffic_v1_traffic_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/traffic/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Recent Traffic */
+        get: operations["get_recent_traffic_v1_traffic_recent_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -491,6 +548,25 @@ export interface components {
              */
             vrrp_state: "MASTER" | "BACKUP" | "FAULT" | "UNKNOWN";
         };
+        /** HostTraffic */
+        HostTraffic: {
+            /** Bytes */
+            bytes: number;
+            /** Duration Ms Sum */
+            duration_ms_sum: number;
+            /** Host */
+            host: string;
+            /** Requests */
+            requests: number;
+            /** S2Xx */
+            s2xx: number;
+            /** S3Xx */
+            s3xx: number;
+            /** S4Xx */
+            s4xx: number;
+            /** S5Xx */
+            s5xx: number;
+        };
         /** Ipam */
         Ipam: {
             /** Counts */
@@ -563,6 +639,54 @@ export interface components {
             size: number;
             /** Target */
             target: number;
+        };
+        /** RecentRequest */
+        RecentRequest: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Host */
+            host: string;
+            /** Method */
+            method: string;
+            /**
+             * Path
+             * @description Path only: query strings are never kept
+             */
+            path: string;
+            /** Status */
+            status: number;
+        };
+        /** RecentTraffic */
+        RecentTraffic: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Gateway */
+            gateway: string;
+            /** Host */
+            host: string;
+            /** Method */
+            method: string;
+            /** Path */
+            path: string;
+            /** Slug */
+            slug: string;
+            /** Status */
+            status: number;
+        };
+        /** RecentTrafficList */
+        RecentTrafficList: {
+            /** Requests */
+            requests: components["schemas"]["RecentTraffic"][];
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -692,6 +816,34 @@ export interface components {
             /** Subdomain */
             subdomain: string;
         };
+        /** TeamTraffic */
+        TeamTraffic: {
+            /** Avg Ms */
+            avg_ms: number;
+            /** Bytes */
+            bytes: number;
+            /** Host */
+            host: string;
+            /** Last Seen */
+            last_seen: string | null;
+            /** Requests */
+            requests: number;
+            /** S2Xx */
+            s2xx: number;
+            /** S3Xx */
+            s3xx: number;
+            /** S4Xx */
+            s4xx: number;
+            /** S5Xx */
+            s5xx: number;
+            /** Slug */
+            slug: string;
+            /**
+             * Team Id
+             * Format: uuid
+             */
+            team_id: string;
+        };
         /** Teardown */
         Teardown: {
             /**
@@ -720,6 +872,62 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+        };
+        /** Traffic */
+        Traffic: {
+            /** Series */
+            series: components["schemas"]["TrafficPoint"][];
+            /** Teams */
+            teams: components["schemas"]["TeamTraffic"][];
+            totals: components["schemas"]["TrafficTotals"];
+            /** Window Minutes */
+            window_minutes: number;
+        };
+        /** TrafficPoint */
+        TrafficPoint: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Errors
+             * @description 5xx responses
+             */
+            errors: number;
+            /** Requests */
+            requests: number;
+        };
+        /**
+         * TrafficReport
+         * @description Counters an agent read from the Traefik access log since its last report.
+         */
+        TrafficReport: {
+            /**
+             * Dropped
+             * @description Requests for hosts beyond the agent's cap
+             * @default 0
+             */
+            dropped: number;
+            /** Hosts */
+            hosts: components["schemas"]["HostTraffic"][];
+            /** Recent */
+            recent: components["schemas"]["RecentRequest"][];
+        };
+        /** TrafficTotals */
+        TrafficTotals: {
+            /** Bytes */
+            bytes: number;
+            /** Requests */
+            requests: number;
+            /** S2Xx */
+            s2xx: number;
+            /** S3Xx */
+            s3xx: number;
+            /** S4Xx */
+            s4xx: number;
+            /** S5Xx */
+            s5xx: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -1322,6 +1530,60 @@ export interface operations {
             };
         };
     };
+    report_traffic_v1_gateways__name__traffic_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrafficReport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Role too low */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown gateway */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ipam_v1_ipam_get: {
         parameters: {
             query?: never;
@@ -1806,6 +2068,97 @@ export interface operations {
             };
             /** @description Team is not active */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_traffic_v1_traffic_get: {
+        parameters: {
+            query?: {
+                window_minutes?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Traffic"];
+                };
+            };
+            /** @description Missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Role too low */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_recent_traffic_v1_traffic_recent_get: {
+        parameters: {
+            query?: {
+                host?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecentTrafficList"];
+                };
+            };
+            /** @description Missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Role too low */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -16,6 +16,7 @@ import (
 
 	"github.com/felcloud/ipo/gateway-agent/internal/signing"
 	"github.com/felcloud/ipo/gateway-agent/internal/trace"
+	"github.com/felcloud/ipo/gateway-agent/internal/traffic"
 )
 
 // ErrNoConfig means the control plane has not compiled any config yet.
@@ -119,6 +120,19 @@ func (c *Client) Heartbeat(ctx context.Context, vrrpState string, version int64)
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("heartbeat answered %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// PostTraffic reports per-host request counters read from the access log.
+func (c *Client) PostTraffic(ctx context.Context, b traffic.Batch) error {
+	resp, err := c.do(ctx, http.MethodPost, "/v1/gateways/"+url.PathEscape(c.Gateway)+"/traffic", b)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("traffic report answered %d", resp.StatusCode)
 	}
 	return nil
 }

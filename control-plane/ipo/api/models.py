@@ -186,3 +186,82 @@ class ChainStatus(BaseModel):
 class Audit(BaseModel):
     chain: ChainStatus
     entries: list[AuditEntry]
+
+
+class HostTraffic(Strict):
+    host: str = Field(max_length=253)
+    requests: int = Field(ge=0)
+    s2xx: int = Field(ge=0)
+    s3xx: int = Field(ge=0)
+    s4xx: int = Field(ge=0)
+    s5xx: int = Field(ge=0)
+    bytes: int = Field(ge=0)
+    duration_ms_sum: int = Field(ge=0)
+
+
+class RecentRequest(Strict):
+    at: datetime
+    host: str = Field(max_length=253)
+    method: str = Field(max_length=16)
+    path: str = Field(max_length=200, description="Path only: query strings are never kept")
+    status: int = Field(ge=100, le=599)
+    duration_ms: int = Field(ge=0)
+
+
+class TrafficReport(Strict):
+    """Counters an agent read from the Traefik access log since its last report."""
+
+    hosts: list[HostTraffic] = Field(max_length=500)
+    recent: list[RecentRequest] = Field(max_length=200)
+    dropped: int = Field(default=0, ge=0, description="Requests for hosts beyond the agent's cap")
+
+
+class TeamTraffic(BaseModel):
+    team_id: UUID
+    slug: str
+    host: str
+    requests: int
+    s2xx: int
+    s3xx: int
+    s4xx: int
+    s5xx: int
+    bytes: int
+    avg_ms: float
+    last_seen: datetime | None
+
+
+class TrafficTotals(BaseModel):
+    requests: int
+    s2xx: int
+    s3xx: int
+    s4xx: int
+    s5xx: int
+    bytes: int
+
+
+class TrafficPoint(BaseModel):
+    at: datetime
+    requests: int
+    errors: int = Field(description="5xx responses")
+
+
+class Traffic(BaseModel):
+    window_minutes: int
+    totals: TrafficTotals
+    teams: list[TeamTraffic]
+    series: list[TrafficPoint]
+
+
+class RecentTraffic(BaseModel):
+    at: datetime
+    gateway: str
+    host: str
+    slug: str
+    method: str
+    path: str
+    status: int
+    duration_ms: int
+
+
+class RecentTrafficList(BaseModel):
+    requests: list[RecentTraffic]
