@@ -142,6 +142,48 @@
     },
     {
       "id": 7,
+      "title": "Gateways reporting MASTER (should be 1)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "max(ipo_gateway_masters) or sum(ipo_agent_vrrp_master)",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 8,
+      "title": "MASTER per agent",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "ipo_agent_vrrp_master",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 9,
       "title": "Reload duration p95",
       "type": "timeseries",
       "targets": [
@@ -156,7 +198,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 32,
         "w": 12,
         "h": 8
       }

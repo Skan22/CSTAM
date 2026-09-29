@@ -27,3 +27,16 @@ flavors:
 images:
   base: debian-12
   sandbox: ipo-sandbox-v1
+network:
+  edge_cidr: 10.0.0.0/24    # edge-net: the VIP and the gateways' public-facing ports
+  mgmt_cidr: 10.30.0.0/24   # mgmt-net: control plane, agents, observability, SSH via the bastion
+  vip: 10.0.0.100           # VRRP virtual address; the floating IP maps to it
+  vrrp_router_id: 51
+  external_network: public  # Neutron external network that provides floating IPs
+  hosts:                    # fixed addresses, so unicast VRRP peers and inventory are static
+    gw-a: {edge: 10.0.0.11, sandbox: 10.20.0.2, mgmt: 10.30.0.11}
+    gw-b: {edge: 10.0.0.12, sandbox: 10.20.0.3, mgmt: 10.30.0.12}
+    cp-1: {mgmt: 10.30.0.21}
+    cp-2: {mgmt: 10.30.0.22}
+    relay: {mgmt: 10.30.0.31, sandbox: 10.20.0.4}
+    bastion: {mgmt: 10.30.0.10}

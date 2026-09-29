@@ -90,6 +90,14 @@ func (r *Registry) Write(w io.Writer) {
 	p("ipo_agent_rollbacks_total %d", r.rollbacks)
 	p("# TYPE ipo_agent_vrrp_transitions_total counter")
 	p("ipo_agent_vrrp_transitions_total %d", r.transitions)
+	// One gateway of the pair should report 1. Prometheus sums this across both agents, which is
+	// a split-brain check that does not depend on the control plane.
+	master := 0
+	if r.vrrp == "MASTER" {
+		master = 1
+	}
+	p("# TYPE ipo_agent_vrrp_master gauge")
+	p("ipo_agent_vrrp_master %d", master)
 	p("# TYPE ipo_agent_reload_duration_seconds histogram")
 	for i, b := range buckets {
 		p("ipo_agent_reload_duration_seconds_bucket{le=\"%g\"} %d", b, r.counts[i])

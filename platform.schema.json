@@ -5,6 +5,20 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["domain", "ip_pool", "pool", "lease", "vrrp", "flavors", "images"],
+  "$defs": {
+    "gateway_host": {
+      "type": "object", "additionalProperties": false, "required": ["edge", "sandbox", "mgmt"],
+      "properties": {"edge": {"type": "string", "format": "ipv4"}, "sandbox": {"type": "string", "format": "ipv4"}, "mgmt": {"type": "string", "format": "ipv4"}}
+    },
+    "relay_host": {
+      "type": "object", "additionalProperties": false, "required": ["mgmt", "sandbox"],
+      "properties": {"mgmt": {"type": "string", "format": "ipv4"}, "sandbox": {"type": "string", "format": "ipv4"}}
+    },
+    "mgmt_host": {
+      "type": "object", "additionalProperties": false, "required": ["mgmt"],
+      "properties": {"mgmt": {"type": "string", "format": "ipv4"}}
+    }
+  },
   "properties": {
     "domain": {"type": "string", "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$"},
     "ip_pool": {
@@ -46,6 +60,31 @@
         "priority_a": {"type": "integer", "minimum": 1, "maximum": 254},
         "priority_b": {"type": "integer", "minimum": 1, "maximum": 254},
         "check_interval_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge_cidr", "mgmt_cidr", "vip", "external_network", "hosts"],
+      "properties": {
+        "edge_cidr": {"type": "string", "format": "ipv4-cidr"},
+        "mgmt_cidr": {"type": "string", "format": "ipv4-cidr"},
+        "vip": {"type": "string", "format": "ipv4"},
+        "vrrp_router_id": {"type": "integer", "minimum": 1, "maximum": 255},
+        "external_network": {"type": "string", "minLength": 1},
+        "hosts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gw-a", "gw-b", "cp-1", "cp-2", "relay", "bastion"],
+          "properties": {
+            "gw-a": {"$ref": "#/$defs/gateway_host"},
+            "gw-b": {"$ref": "#/$defs/gateway_host"},
+            "cp-1": {"$ref": "#/$defs/mgmt_host"},
+            "cp-2": {"$ref": "#/$defs/mgmt_host"},
+            "relay": {"$ref": "#/$defs/relay_host"},
+            "bastion": {"$ref": "#/$defs/mgmt_host"}
+          }
+        }
       }
     },
     "flavors": {

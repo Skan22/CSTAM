@@ -1,0 +1,14 @@
+---
+traefik_version: "3.7.13"
+traefik_image: "docker.io/library/traefik:v{{ traefik_version }}"
+traefik_web_port: 80
+traefik_websecure_port: 443
+traefik_api_address: "127.0.0.1:8080"
+traefik_access_log: /var/log/traefik/access.log
+traefik_log_level: INFO
+traefik_live_config: /var/lib/ipo-agent/live.yml
+traefik_static_config: /etc/traefik/traefik.yml
+# Set an address to terminate TLS at the gateway with ACME (HTTP-01 on the web entry point);
+# left empty the websecure entry point is not opened.
+traefik_acme_email: ""
+traefik_acme_storage: /var/lib/traefik/acme.json

@@ -111,7 +111,7 @@ describe("Overview", () => {
   test("shows the VIP holder and raises an alert for a stale gateway", async () => {
     await signIn("viewer");
     mockApi({
-      "GET /v1/gateways": { gateways: [gw(), gw({ gateway: "gw2", vrrp_state: "BACKUP", last_heartbeat: inFuture(-300) })] },
+      "GET /v1/gateways": { gateways: [gw(), gw({ gateway: "gw2", vrrp_state: "BACKUP", last_heartbeat: inFuture(-300) })], split_brain: false },
       "GET /v1/pool": { size: 5, target: 5, free: 20, leased: 2, draining: 0, quarantined: 0 },
       "GET /v1/teams": [team()],
     });
@@ -127,7 +127,7 @@ describe("Gateways", () => {
   test("an admin compares two config versions and sees only the changed lines", async () => {
     await signIn("admin");
     mockApi({
-      "GET /v1/gateways": { gateways: [gw()] },
+      "GET /v1/gateways": { gateways: [gw()], split_brain: false },
       "GET /v1/config/versions": { pinned: null, versions: [2, 1].map((v) => ({ version: v, sha256: "b".repeat(64), status: "live", created_at: inFuture(-10) })) },
       "GET /v1/config/versions/1": () => json(cfg(1, ["a"])),
       "GET /v1/config/versions/2": () => json(cfg(2, ["a", "b"])),
@@ -144,7 +144,7 @@ describe("Gateways", () => {
   test("pinning a version asks first, then posts the rollback", async () => {
     await signIn("admin");
     const api = mockApi({
-      "GET /v1/gateways": { gateways: [gw()] },
+      "GET /v1/gateways": { gateways: [gw()], split_brain: false },
       "GET /v1/config/versions": { pinned: null, versions: [{ version: 1, sha256: "b".repeat(64), status: "live", created_at: inFuture(-10) }] },
       "POST /v1/config/rollback": () => json({ pinned: 1 }, 202),
     });
@@ -157,7 +157,7 @@ describe("Gateways", () => {
 
   test("failover and config controls are hidden from operators", async () => {
     await signIn("operator");
-    const api = mockApi({ "GET /v1/gateways": { gateways: [gw()] } });
+    const api = mockApi({ "GET /v1/gateways": { gateways: [gw()], split_brain: false } });
     renderLive(<Gateways />);
     await screen.findByText("gw1");
     expect(screen.queryByRole("button", { name: "Fail over" })).toBeNull();
@@ -165,9 +165,20 @@ describe("Gateways", () => {
     expect(api.count("GET /v1/config/versions")).toBe(0);
   });
 
+  test("a split brain is called out at the top of the page, and clears when it resolves", async () => {
+    await signIn("viewer");
+    let split = true;
+    mockApi({ "GET /v1/gateways": () => json({ gateways: [gw(), gw({ gateway: "gw2" })], split_brain: split }) });
+    renderLive(<Gateways />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Split brain/);
+    split = false;
+    act(() => FakeSource.last!.emit("gateway.split_brain_resolved", { masters: ["gw1"] }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
   test("the VRRP timeline lists transitions as they arrive", async () => {
     await signIn("viewer");
-    mockApi({ "GET /v1/gateways": { gateways: [gw()] } });
+    mockApi({ "GET /v1/gateways": { gateways: [gw()], split_brain: false } });
     renderLive(<Gateways />);
     await screen.findByText(/No VRRP transitions/);
     act(() => FakeSource.last!.emit("gateway.vrrp", { gateway: "gw2", from: "BACKUP", to: "MASTER" }));

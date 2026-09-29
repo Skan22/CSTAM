@@ -1,0 +1,33 @@
+[project]
+name = "ipo-system-tests"
+version = "0.1.0"
+description = "Chaos, isolation and deploy tests that need a real gateway stack or rendered infrastructure code"
+requires-python = ">=3.12"
+dependencies = [
+    "jinja2>=3.1",
+    "pyyaml>=6",
+    "jsonschema>=4.22",
+    "httpx>=0.28",
+    "cryptography>=50.0.1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-pyyaml", "types-jsonschema"]
+deploy = ["ansible-core>=2.17", "ansible-lint>=24"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["."]
+exclude = ["\\.venv"]
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+pythonpath = ["."]

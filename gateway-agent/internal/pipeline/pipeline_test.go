@@ -44,7 +44,7 @@ func newRig(t *testing.T, mutate ...func(*Config)) *rig {
 	t.Helper()
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	dir := t.TempDir()
-	tf := faketraefik.New(filepath.Join(dir, "live.json"))
+	tf := faketraefik.New(filepath.Join(dir, "live.yml"))
 	t.Cleanup(tf.Close)
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "hello") }))
@@ -110,7 +110,7 @@ func (r *rig) apply(version int64, b string) (int64, error) {
 
 func (r *rig) live() string {
 	r.t.Helper()
-	b, err := os.ReadFile(filepath.Join(r.dir, "live.json"))
+	b, err := os.ReadFile(filepath.Join(r.dir, "live.yml"))
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -370,7 +370,7 @@ func TestKilledAtAnyPointOfTheSwapRestoresLastKnownGood(t *testing.T) {
 			if r.live() != want || p.Version() != wantV {
 				t.Fatalf("live=%q version=%d", r.live(), p.Version())
 			}
-			for _, leftover := range []string{"staging.json", "live.json.tmp"} {
+			for _, leftover := range []string{"staging.json", "live.yml.tmp"} {
 				if _, err := os.Stat(filepath.Join(r.dir, leftover)); err == nil {
 					t.Errorf("%s left behind", leftover)
 				}

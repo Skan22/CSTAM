@@ -37,7 +37,8 @@ import (
 )
 
 // EmptyConfig is what a gateway serves before it has ever received a config.
-const EmptyConfig = `{"http":{}}`
+// Traefik rejects a bare {"http":{}} ("cannot be a standalone element"), so the maps are spelled out.
+const EmptyConfig = `{"http":{"routers":{},"services":{}}}`
 
 // CanaryRouter is the router name the compiler always emits.
 const CanaryRouter = "ipo-canary"
@@ -159,7 +160,7 @@ func (p *Pipeline) newestLKG() (int64, string, error) {
 }
 
 func (p *Pipeline) recover() error {
-	for _, junk := range []string{"staging.json", "live.json.tmp"} {
+	for _, junk := range []string{"staging.json", "live.yml.tmp"} {
 		_ = os.Remove(p.path(junk))
 	}
 	ver, file, err := p.newestLKG()
@@ -167,7 +168,7 @@ func (p *Pipeline) recover() error {
 		return err
 	}
 	if ver == 0 {
-		if err := p.atomicWrite(p.path("live.json"), []byte(EmptyConfig)); err != nil {
+		if err := p.atomicWrite(p.path("live.yml"), []byte(EmptyConfig)); err != nil {
 			return err
 		}
 		p.ver, p.sha, p.live = 0, signing.Sum(EmptyConfig), &policy.Config{Routers: map[string]policy.Router{}}
@@ -183,7 +184,7 @@ func (p *Pipeline) recover() error {
 	live, err := policy.Validate(string(data), p.cfg.Rules)
 	if err != nil {
 		// A last-known-good that no longer satisfies policy (rules tightened since) is not served.
-		_ = p.atomicWrite(p.path("live.json"), []byte(EmptyConfig))
+		_ = p.atomicWrite(p.path("live.yml"), []byte(EmptyConfig))
 		p.ver, p.sha, p.live = ver, signing.Sum(EmptyConfig), &policy.Config{Routers: map[string]policy.Router{}}
 		return nil
 	}
@@ -236,11 +237,11 @@ func (p *Pipeline) atomicWrite(path string, data []byte) error {
 	return nil
 }
 
-// restoreFrom atomically makes live.json a hard link to src. Nothing is written, so this works on
+// restoreFrom atomically makes live.yml a hard link to src. Nothing is written, so this works on
 // a full disk. Files are only ever replaced by rename, never modified in place, so sharing an
 // inode is safe.
 func (p *Pipeline) restoreFrom(src string) error {
-	tmp := p.path("live.json.tmp")
+	tmp := p.path("live.yml.tmp")
 	_ = os.Remove(tmp)
 	if err := os.Link(src, tmp); err != nil {
 		data, rerr := os.ReadFile(src)
@@ -251,7 +252,7 @@ func (p *Pipeline) restoreFrom(src string) error {
 			return werr
 		}
 	}
-	if err := os.Rename(tmp, p.path("live.json")); err != nil {
+	if err := os.Rename(tmp, p.path("live.yml")); err != nil {
 		return err
 	}
 	_ = os.Remove(tmp) // rename is a no-op, and keeps tmp, when live is already a link to src
@@ -311,7 +312,7 @@ func (p *Pipeline) Apply(ctx context.Context, env signing.Envelope) (int64, erro
 	}
 
 	end = tr.Start(ctx, "swap", attrs)
-	if err := os.Rename(staging, p.path("live.json")); err != nil {
+	if err := os.Rename(staging, p.path("live.yml")); err != nil {
 		_ = os.Remove(staging)
 		end(err)
 		return p.reject(KindStorage, err)
@@ -350,7 +351,7 @@ func (p *Pipeline) commit(env signing.Envelope) error {
 	final := p.path(fmt.Sprintf("lkg-%d.json", env.Version))
 	tmp := final + ".tmp"
 	_ = os.Remove(tmp)
-	if err := os.Link(p.path("live.json"), tmp); err != nil {
+	if err := os.Link(p.path("live.yml"), tmp); err != nil {
 		if werr := p.cfg.WriteFile(tmp, []byte(env.Body)); werr != nil {
 			return werr
 		}
@@ -452,7 +453,7 @@ func (p *Pipeline) rollback(ctx context.Context, cause error, attrs map[string]a
 	if _, file, e := p.newestLKG(); e != nil {
 		err = e
 	} else if file == "" {
-		err = p.atomicWrite(p.path("live.json"), []byte(EmptyConfig))
+		err = p.atomicWrite(p.path("live.yml"), []byte(EmptyConfig))
 	} else {
 		err = p.restoreFrom(file)
 	}

@@ -17,7 +17,7 @@ export function Gateways() {
   const now = useNow();
   const timeline = useHistory(["gateway.vrrp"]);
   const [failover, setFailover] = useState(false);
-  const master = gateways.data?.find((g) => g.vrrp_state === "MASTER");
+  const master = gateways.data?.gateways.find((g) => g.vrrp_state === "MASTER");
 
   return (
     <div className="space-y-5">
@@ -26,9 +26,15 @@ export function Gateways() {
         actions={admin && <Button variant="danger" disabled={!master} onClick={() => setFailover(true)}>Fail over</Button>}
       >
         {gateways.error && <ErrorNote>{gateways.error}</ErrorNote>}
+        {gateways.data?.split_brain && (
+          <div role="alert" className="mb-4 rounded-lg border border-bad bg-bad-bg p-3 font-semibold text-bad">
+            Split brain: both gateways claim the VIP and both are still reporting. Check the
+            VRRP link between them; the runbook is docs/runbooks/alerts.md.
+          </div>
+        )}
         {!gateways.data ? <Loading what="gateways" /> : (
           <div className="grid gap-4 sm:grid-cols-2">
-            {gateways.data.map((g) => (
+            {gateways.data.gateways.map((g) => (
               <div key={g.gateway} className="rounded-lg border border-line bg-raised p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xl font-bold">{g.gateway}</span>

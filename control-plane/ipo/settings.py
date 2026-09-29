@@ -17,6 +17,7 @@ class Settings:
     backend_port: int = 80
     gateways: tuple[str, ...] = ("gw-a", "gw-b")
     debounce_seconds: float = 0.1
+    heartbeat_fresh_seconds: float = 15  # three missed beats at the agent's default of 5 s
 
     @classmethod
     def from_platform(cls, cfg: dict[str, Any]) -> "Settings":

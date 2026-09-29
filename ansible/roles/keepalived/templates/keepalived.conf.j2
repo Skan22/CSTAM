@@ -1,0 +1,65 @@
+# Managed by Ansible (role keepalived); local edits are overwritten.
+global_defs {
+    router_id {{ keepalived_router_id }}
+    vrrp_version 3
+{% if keepalived_script_security %}
+    enable_script_security
+{% endif %}
+    script_user {{ keepalived_script_user }}
+}
+
+# Traefik ping. No weight: failing the check puts the instance in FAULT, which releases the
+# VIP at once (a priority-0 advert) instead of merely lowering the priority, and with
+# nopreempt a lowered priority would never hand the VIP over.
+vrrp_script check_traefik {
+    script "{{ keepalived_check_script }}"
+    interval {{ keepalived_check_interval }}
+    timeout {{ keepalived_check_timeout }}
+    fall {{ keepalived_check_fall }}
+    rise {{ keepalived_check_rise }}
+}
+
+# ipo-agent writes a non-zero number here for POST /fault. weight 0 makes any non-zero value a
+# failure, i.e. FAULT, and init_file creates it as 0.
+track_file ipo_fault {
+    file {{ keepalived_fault_file }}
+    weight 0
+    init_file
+}
+
+vrrp_instance IPO_VIP {
+    state BACKUP
+    nopreempt
+    interface {{ keepalived_interface }}
+    virtual_router_id {{ keepalived_router_vrid }}
+    priority {{ keepalived_priority }}
+    advert_int {{ keepalived_advert_int }}
+
+    # Unicast: multicast is often filtered on Neutron.
+    unicast_src_ip {{ keepalived_src_ip }}
+    unicast_peer {
+        {{ keepalived_peer_ip }}
+    }
+
+    virtual_ipaddress {
+        {{ keepalived_vip }}/{{ keepalived_vip_prefix }} dev {{ keepalived_interface }}
+    }
+
+    # Gratuitous ARP on becoming MASTER, repeated, then refreshed so neighbours and Neutron's
+    # port bindings converge on the new owner.
+    garp_master_delay 1
+    garp_master_repeat 5
+    garp_master_refresh 30
+
+    track_script {
+        check_traefik
+    }
+    track_file {
+        ipo_fault
+    }
+
+    notify_master "{{ keepalived_notify }} MASTER {{ keepalived_state_file }}"
+    notify_backup "{{ keepalived_notify }} BACKUP {{ keepalived_state_file }}"
+    notify_fault  "{{ keepalived_notify }} FAULT {{ keepalived_state_file }}"
+    notify_stop   "{{ keepalived_notify }} STOPPED {{ keepalived_state_file }}"
+}

@@ -109,6 +109,8 @@ class Gateway(BaseModel):
 
 class Gateways(BaseModel):
     gateways: list[Gateway]
+    split_brain: bool = Field(
+        description="True while two gateways both report MASTER after the newest promotion")
 
 
 class Heartbeat(Strict):

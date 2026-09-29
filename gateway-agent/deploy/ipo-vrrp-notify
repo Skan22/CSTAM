@@ -1,3 +1,0 @@
-#!/bin/sh
-# UNTESTED. Records the VRRP state for ipo-agent (IPO_VRRP_STATE_FILE).
-echo "$1" > /run/ipo/vrrp_state

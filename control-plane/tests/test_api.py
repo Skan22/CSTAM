@@ -410,6 +410,65 @@ def test_heartbeat_records_state_and_version_and_announces_a_change(api: Api) ->
         ("gateway.vrrp", "MASTER")]
 
 
+def _masters_gauge(api: Api) -> float:
+    for line in api.client.get("/metrics").text.splitlines():
+        if line.startswith("ipo_gateway_masters "):
+            return float(line.split()[1])
+    raise AssertionError("ipo_gateway_masters is not exported")
+
+
+def _beat(api: Api, gw: str, state: str) -> None:
+    r = api.client.post(f"/v1/gateways/{gw}/heartbeat", headers=api.h("operator"),
+                        json={"vrrp_state": state, "live_version": 1})
+    assert r.status_code == 204
+
+
+def test_two_masters_that_keep_reporting_are_a_split_brain(api: Api) -> None:
+    _beat(api, "gw-a", "MASTER")
+    _beat(api, "gw-b", "BACKUP")
+    assert _masters_gauge(api) == 1
+    with api.connect() as listener:
+        listener.execute("LISTEN ipo_events")
+        listener.commit()
+        _beat(api, "gw-b", "MASTER")
+        assert _masters_gauge(api) == 1  # gw-a has not reported since gw-b's promotion
+        _beat(api, "gw-a", "MASTER")
+        assert _masters_gauge(api) == 2
+        _beat(api, "gw-b", "MASTER")  # still split: announced once, not on every beat
+        _beat(api, "gw-b", "BACKUP")
+        assert _masters_gauge(api) == 1
+        seen = [json.loads(n.payload) for n in listener.notifies(timeout=0.5, stop_after=8)]
+    kinds = [e["kind"] for e in seen if e["kind"].startswith("gateway.split_brain")]
+    assert kinds == ["gateway.split_brain", "gateway.split_brain_resolved"]
+    assert next(e for e in seen if e["kind"] == "gateway.split_brain")["masters"] == [
+        "gw-a", "gw-b"]
+    assert "ipo_split_brain_total 1.0" in api.client.get("/metrics").text
+
+
+def test_a_master_that_died_is_not_a_split_brain_when_the_survivor_takes_over(api: Api) -> None:
+    _beat(api, "gw-a", "MASTER")
+    _beat(api, "gw-b", "BACKUP")
+    with api.connect() as listener:
+        listener.execute("LISTEN ipo_events")
+        listener.commit()
+        _beat(api, "gw-b", "MASTER")  # gw-a is silent from here on
+        _beat(api, "gw-b", "MASTER")
+        assert _masters_gauge(api) == 1
+        seen = [json.loads(n.payload) for n in listener.notifies(timeout=0.5, stop_after=4)]
+    assert not [e for e in seen if e["kind"].startswith("gateway.split_brain")]
+
+
+def test_a_gateway_silent_for_long_is_not_counted_at_all(api: Api) -> None:
+    _beat(api, "gw-a", "MASTER")
+    _beat(api, "gw-b", "MASTER")
+    _beat(api, "gw-a", "MASTER")
+    assert _masters_gauge(api) == 2
+    with api.connect() as conn:
+        conn.execute("UPDATE gateway_status SET last_heartbeat = now() - interval '5 minutes'"
+                     " WHERE gateway = 'gw-a'")
+    assert _masters_gauge(api) == 1
+
+
 def test_heartbeat_rejects_unknown_gateways_and_bad_bodies(api: Api) -> None:
     good = {"vrrp_state": "MASTER", "live_version": 1}
     r = api.client.post("/v1/gateways/gw-zzz/heartbeat", json=good, headers=api.h("operator"))
@@ -620,3 +679,17 @@ def test_a_zero_version_heartbeat_does_not_erase_the_known_version(api: Api) -> 
     assert beat(0).status_code == 204
     body = api.client.get("/v1/gateways", headers=api.h("viewer")).json()
     assert next(g for g in body["gateways"] if g["gateway"] == "gw-a")["live_version"] == 4
+
+
+def test_the_gateway_list_says_when_two_gateways_hold_the_vip(api: Api) -> None:
+    def split() -> bool:
+        return bool(api.client.get("/v1/gateways", headers=api.h("viewer")).json()["split_brain"])
+
+    _beat(api, "gw-a", "MASTER")
+    _beat(api, "gw-b", "BACKUP")
+    assert not split()
+    _beat(api, "gw-b", "MASTER")
+    _beat(api, "gw-a", "MASTER")
+    assert split()
+    _beat(api, "gw-b", "BACKUP")
+    assert not split()

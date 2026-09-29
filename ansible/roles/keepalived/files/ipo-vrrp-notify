@@ -1,0 +1,10 @@
+#!/bin/sh
+# Called by keepalived on every state change: ipo-vrrp-notify <MASTER|BACKUP|FAULT|STOPPED> [file].
+# The state file is what ipo-agent reports to the control plane. Written atomically so a reader
+# never sees a truncated file.
+set -eu
+state="${1:?usage: ipo-vrrp-notify STATE [FILE]}"
+file="${2:-${IPO_VRRP_STATE_FILE:-/run/ipo/vrrp_state}}"
+tmp="${file}.tmp.$$"
+printf '%s\n' "$state" > "$tmp"
+mv -f "$tmp" "$file"

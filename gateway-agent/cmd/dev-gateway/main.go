@@ -47,7 +47,7 @@ func main() {
 		}
 		defer os.RemoveAll(*dir)
 	}
-	tf := faketraefik.New(filepath.Join(*dir, "live.json"))
+	tf := faketraefik.New(filepath.Join(*dir, "live.yml"))
 	defer tf.Close()
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprintln(w, "sandbox") }))
 	defer app.Close()

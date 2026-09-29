@@ -23,7 +23,7 @@ from ipo.api import auth, models, users
 from ipo.api.auth import Principal
 from ipo.api.problem import Problem, install
 from ipo.controllers import compiler
-from ipo.domain import events, leases
+from ipo.domain import events, gateways, leases
 from ipo.domain.registration import (
     IdempotencyConflict,
     PoolExhausted,
@@ -197,7 +197,10 @@ def create_app(deps: AppDeps) -> FastAPI:
     def scrape() -> Response:
         try:
             with deps.connect() as conn:
-                metrics.refresh_gauges(conn, pool_target=settings_now(conn).pool_target)
+                metrics.refresh_gauges(
+                    conn, pool_target=settings_now(conn).pool_target,
+                    gateways=deps.settings.gateways,
+                    fresh_seconds=deps.settings.heartbeat_fresh_seconds)
         except Exception:
             log.exception("could not refresh gauges; serving the last values")
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
@@ -356,7 +359,9 @@ def create_app(deps: AppDeps) -> FastAPI:
                               last_heartbeat=known[g][3]) if g in known else
                models.Gateway(gateway=g, vrrp_state="UNKNOWN", live_version=None,
                               last_heartbeat=None) for g in deps.settings.gateways]
-        return models.Gateways(gateways=out)
+        masters = gateways.masters(conn, deps.settings.gateways,
+                                   deps.settings.heartbeat_fresh_seconds)
+        return models.Gateways(gateways=out, split_brain=len(masters) > 1)
 
     @app.post("/v1/gateways/failover", tags=["gateways"], status_code=202,
               response_model=models.Failover, responses={
@@ -391,6 +396,8 @@ def create_app(deps: AppDeps) -> FastAPI:
         with conn.transaction():
             prev = conn.execute("SELECT vrrp_state FROM gateway_status WHERE gateway = %s"
                                 " FOR UPDATE", (name,)).fetchone()
+            was = gateways.masters(conn, deps.settings.gateways,
+                                   deps.settings.heartbeat_fresh_seconds)
             conn.execute(
                 "INSERT INTO gateway_status (gateway, vrrp_state, live_version, last_heartbeat)"
                 " VALUES (%s, %s, %s, now()) ON CONFLICT (gateway) DO UPDATE SET"
@@ -400,6 +407,13 @@ def create_app(deps: AppDeps) -> FastAPI:
             if (prev[0] if prev else None) != body.vrrp_state:
                 events.emit(conn, "gateway.vrrp", gateway=name, to=body.vrrp_state,
                             **{"from": prev[0] if prev else None})
+            now = gateways.masters(conn, deps.settings.gateways,
+                                   deps.settings.heartbeat_fresh_seconds)
+            if len(now) > 1 >= len(was):
+                metrics.SPLIT_BRAINS.inc()
+                events.emit(conn, "gateway.split_brain", masters=now)
+            elif len(now) <= 1 < len(was):
+                events.emit(conn, "gateway.split_brain_resolved", masters=now)
         return Response(status_code=204)
 
     # ----------------------------------------------------------- config

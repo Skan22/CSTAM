@@ -1,0 +1,29 @@
+---
+# Values come from platform.yaml (loaded as ipo_platform in inventory/group_vars/all.yml) and from
+# the Pulumi outputs, which give each gateway its role in the pair.
+keepalived_role: "{{ 'primary' if inventory_hostname == 'gw-a' else 'secondary' }}"
+keepalived_peer: "{{ 'gw-b' if inventory_hostname == 'gw-a' else 'gw-a' }}"
+
+keepalived_router_id: "{{ inventory_hostname }}"
+keepalived_router_vrid: "{{ ipo_platform.network.vrrp_router_id | default(51) }}"
+keepalived_priority: >-
+  {{ ipo_platform.vrrp.priority_a if keepalived_role == 'primary' else ipo_platform.vrrp.priority_b }}
+keepalived_advert_int: "{{ ipo_platform.vrrp.advert_interval_seconds }}"
+keepalived_check_interval: "{{ ipo_platform.vrrp.check_interval_seconds }}"
+keepalived_check_timeout: 2
+keepalived_check_fall: 2
+keepalived_check_rise: 2
+
+keepalived_interface: eth0
+keepalived_src_ip: "{{ ipo_platform.network.hosts[inventory_hostname].edge }}"
+keepalived_peer_ip: "{{ ipo_platform.network.hosts[keepalived_peer].edge }}"
+keepalived_vip: "{{ ipo_platform.network.vip }}"
+keepalived_vip_prefix: "{{ ipo_platform.network.edge_cidr.split('/')[1] }}"
+
+keepalived_script_user: keepalived_script
+keepalived_script_security: true
+keepalived_bin_dir: /usr/local/libexec/ipo
+keepalived_check_script: "{{ keepalived_bin_dir }}/ipo-check-traefik"
+keepalived_notify: "{{ keepalived_bin_dir }}/ipo-vrrp-notify"
+keepalived_state_file: /run/ipo/vrrp_state
+keepalived_fault_file: /run/ipo/fault

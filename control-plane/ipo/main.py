@@ -11,6 +11,7 @@ Configuration comes from the environment:
     IPO_CLOUD          `openstack` (default) or `fake`
     IPO_SIGNING_KEY    base64 Ed25519 seed; generated (and warned about) if unset
     IPO_AGENTS         gw-a=https://10.0.0.11:8443,gw-b=https://10.0.0.12:8443
+                       (with IPO_CLOUD=fake and no IPO_AGENTS, in-process agent doubles are used)
     IPO_AGENT_CERT / IPO_AGENT_KEY / IPO_AGENT_CA   mTLS material for the agents
     IPO_VIP            the gateway VIP, for the registration probe
     IPO_WORKERS        saga worker threads (default 2)
@@ -124,8 +125,9 @@ def build_runtime(
             from ipo.adapters.openstack.sdk import OpenStackCloud
             cloud = OpenStackCloud.from_env(env, base)
     if agents is None:
+        # IPO_AGENTS wins even with the fake cloud, so a lab can put real agents behind it.
         agents = ({g: LocalAgent(signer.public_b64) for g in base.gateways}
-                  if fake else _agents(env))
+                  if fake and not env.get("IPO_AGENTS") else _agents(env))
     if prober is None:
         prober = HttpProber(env["IPO_VIP"]) if env.get("IPO_VIP") else NullProber()
 

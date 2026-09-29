@@ -13,3 +13,4 @@ dist/
 *.pem
 secrets.yaml
 .env
+*.tsbuildinfo

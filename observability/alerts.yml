@@ -35,6 +35,24 @@ groups:
           summary: A gateway changed VRRP state more than three times in two minutes
           runbook: docs/runbooks/alerts.md#ipogatewayflapping
 
+      - alert: IPOGatewaySplitBrain
+        # Two sources so neither a control-plane outage nor an agent outage hides it: the agents'
+        # own view of VRRP, and the control plane's view from fresh heartbeats.
+        expr: sum(ipo_agent_vrrp_master) > 1 or max(ipo_gateway_masters) > 1
+        for: 5s
+        labels: {severity: page}
+        annotations:
+          summary: Both gateways believe they are MASTER
+          runbook: docs/runbooks/alerts.md#ipogatewaysplitbrain
+
+      - alert: IPONoGatewayMaster
+        expr: sum(ipo_agent_vrrp_master) == 0 and max(ipo_gateway_masters) == 0
+        for: 15s
+        labels: {severity: page}
+        annotations:
+          summary: No gateway is MASTER, so the VIP is unowned
+          runbook: docs/runbooks/alerts.md#iponogatewaymaster
+
       - alert: IPOWarmPoolLow
         expr: ipo_pool_size < 0.5 * ipo_pool_target
         for: 2m

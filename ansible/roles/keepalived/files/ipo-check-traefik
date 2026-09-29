@@ -1,0 +1,6 @@
+#!/bin/sh
+# keepalived health check: exits 0 only if Traefik answers its ping on the loopback API entry
+# point. keepalived runs it every check interval and applies fall/rise, so one slow answer is
+# not enough to give up the VIP.
+exec curl --silent --fail --max-time 1 --output /dev/null \
+  "http://${IPO_TRAEFIK_API:-127.0.0.1:8080}/ping"

@@ -14,13 +14,13 @@ verified, validated and proven to route. Go, standard library only.
    sandbox CIDR (or the canary), only allowed middlewares (422). A version at or below the live
    one is a replay (409); the same version with the same hash is acked as a no-op.
 3. **stage**: write and fsync `staging.json`.
-4. **swap**: atomically rename onto `live.json`, which Traefik watches.
+4. **swap**: atomically rename onto `live.yml`, which Traefik watches (Traefik's file provider refuses a `.json` name; JSON is valid YAML, so the body stays JSON).
 5. **converge**: wait until Traefik's API lists the new routers.
 6. **probe**: request every route changed since the live config, plus the canary.
 7. **commit**: hard-link to `lkg-<version>.json` and drop older ones, or **rollback** to the last
    known good file (422). Rollback and commit need no free disk space.
 
-On start `live.json` is reset to the newest `lkg-*` file (or `{"http":{}}`), so a process killed
+On start `live.yml` is reset to the newest `lkg-*` file (or `{"http":{"routers":{},"services":{}}}`), so a process killed
 mid-swap resumes from the last verified config.
 
 ## Other endpoints

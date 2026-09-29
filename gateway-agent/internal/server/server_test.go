@@ -93,7 +93,7 @@ func newAgent(t *testing.T) *agent {
 	t.Helper()
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	dir := t.TempDir()
-	tf := faketraefik.New(filepath.Join(dir, "live.json"))
+	tf := faketraefik.New(filepath.Join(dir, "live.yml"))
 	t.Cleanup(tf.Close)
 	cs := httptest.NewServer(canary.Handler())
 	t.Cleanup(cs.Close)

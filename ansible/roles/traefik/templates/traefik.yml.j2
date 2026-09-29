@@ -1,0 +1,60 @@
+# Managed by Ansible (role traefik); local edits are overwritten.
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":{{ traefik_web_port }}"
+{% if traefik_acme_email %}
+  websecure:
+    address: ":{{ traefik_websecure_port }}"
+    http:
+      tls:
+        certResolver: acme
+{% endif %}
+  # Loopback only: the API, /ping (keepalived's health check) and /metrics live here.
+  traefik:
+    address: "{{ traefik_api_address }}"
+
+api:
+  insecure: true   # served on the "traefik" entry point above, never on a public one
+  dashboard: false
+
+ping:
+  entryPoint: traefik
+
+metrics:
+  prometheus:
+    entryPoint: traefik
+    addRoutersLabels: true
+
+# One JSON line per request. ipo-agent tails this file for the dashboard's traffic view.
+accessLog:
+  filePath: {{ traefik_access_log }}
+  format: json
+  bufferingSize: 0
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop
+
+log:
+  level: {{ traefik_log_level }}
+  format: json
+
+{% if traefik_acme_email %}
+certificatesResolvers:
+  acme:
+    acme:
+      email: {{ traefik_acme_email }}
+      storage: {{ traefik_acme_storage }}
+      httpChallenge:
+        entryPoint: web
+{% endif %}
+
+providers:
+  file:
+    # ipo-agent atomically replaces this file with each verified config version.
+    filename: {{ traefik_live_config }}
+    watch: true

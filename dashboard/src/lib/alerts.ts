@@ -10,14 +10,14 @@ const STALE_MS = 20_000;
 
 /** Conditions the dashboard can see from what the API already reports. The Prometheus rules in
  * observability/ are the real alerting; this is the on-screen banner. */
-export function computeAlerts(gateways: Gateway[], pool: Pool | undefined, now: number): Alert[] {
+export function computeAlerts(gateways: Gateway[], pool: Pool | undefined, now: number, splitBrain = false): Alert[] {
   const out: Alert[] = [];
   const masters = gateways.filter((g) => g.vrrp_state === "MASTER");
   if (gateways.length && masters.length === 0) {
     out.push({ id: "no-master", level: "bad", text: "No gateway reports MASTER: the VIP may be unowned." });
   }
-  if (masters.length > 1) {
-    out.push({ id: "split-brain", level: "bad", text: `Split brain: ${masters.map((g) => g.gateway).join(" and ")} both report MASTER.` });
+  if (splitBrain) {
+    out.push({ id: "split-brain", level: "bad", text: `Split brain: ${masters.map((g) => g.gateway).join(" and ")} both report MASTER and both are still reporting.` });
   }
   const versions = new Set(gateways.map((g) => g.live_version ?? 0));
   if (versions.size > 1) {

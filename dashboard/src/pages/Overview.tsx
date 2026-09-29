@@ -14,9 +14,9 @@ export function Overview() {
   // The reconciler tears the team down by itself, so the alert is stale after a while.
   const vmGone = useHistory(["alert.vm_gone"]).filter((e) => now - e.at < VM_GONE_MS);
 
-  const gws = gateways.data ?? [];
+  const gws = gateways.data?.gateways ?? [];
   const master = gws.find((g) => g.vrrp_state === "MASTER");
-  const alerts = computeAlerts(gws, pool.data, now);
+  const alerts = computeAlerts(gws, pool.data, now, gateways.data?.split_brain);
   const byState = (teams.data ?? []).reduce<Record<string, number>>((m, t) => ({ ...m, [t.state]: (m[t.state] ?? 0) + 1 }), {});
   const p = pool.data;
 

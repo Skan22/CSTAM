@@ -467,6 +467,11 @@ export interface components {
         Gateways: {
             /** Gateways */
             gateways: components["schemas"]["Gateway"][];
+            /**
+             * Split Brain
+             * @description True while two gateways both report MASTER after the newest promotion
+             */
+            split_brain: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

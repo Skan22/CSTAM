@@ -303,10 +303,16 @@
             },
             "title": "Gateways",
             "type": "array"
+          },
+          "split_brain": {
+            "description": "True while two gateways both report MASTER after the newest promotion",
+            "title": "Split Brain",
+            "type": "boolean"
           }
         },
         "required": [
-          "gateways"
+          "gateways",
+          "split_brain"
         ],
         "title": "Gateways",
         "type": "object"

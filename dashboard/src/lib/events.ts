@@ -3,7 +3,8 @@
 
 export const EVENT_KINDS = [
   "team.active", "team.deleted", "team.draining", "team.failed",
-  "lease.changed", "gateway.vrrp", "gateway.config", "alert.vm_gone",
+  "lease.changed", "gateway.vrrp", "gateway.config", "gateway.split_brain",
+  "gateway.split_brain_resolved", "alert.vm_gone",
 ] as const;
 
 export interface LiveEvent {

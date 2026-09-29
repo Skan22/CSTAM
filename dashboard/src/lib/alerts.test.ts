@@ -13,8 +13,14 @@ test("a healthy pair raises nothing", () => {
   expect(computeAlerts([gw("a", "MASTER"), gw("b", "BACKUP")], pool(4, 4), now)).toEqual([]);
 });
 
-test("two masters is a split brain and none is a missing VIP", () => {
-  expect(ids(computeAlerts([gw("a", "MASTER"), gw("b", "MASTER")], undefined, now))).toContain("split-brain");
+test("split brain is what the control plane says, not two MASTER rows", () => {
+  const two = [gw("a", "MASTER"), gw("b", "MASTER")];
+  expect(ids(computeAlerts(two, undefined, now, true))).toContain("split-brain");
+  // a master that died leaves its last state behind while the survivor takes over
+  expect(ids(computeAlerts(two, undefined, now, false))).not.toContain("split-brain");
+});
+
+test("no master is a missing VIP", () => {
   expect(ids(computeAlerts([gw("a", "BACKUP"), gw("b", "BACKUP")], undefined, now))).toContain("no-master");
 });
 
