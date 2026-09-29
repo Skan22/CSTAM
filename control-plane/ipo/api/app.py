@@ -381,7 +381,39 @@ def create_app(deps: AppDeps) -> FastAPI:
         audit(conn, who.username, "gateway.failover", row[0])
         return models.Failover(gateway=row[0])
 
+    @app.post("/v1/gateways/{name}/heartbeat", tags=["gateways"], status_code=204,
+              responses={404: {"description": "Not a configured gateway"}})
+    def heartbeat(name: str, body: models.Heartbeat, _: Principal = operator,
+                  conn: psycopg.Connection = Db) -> Response:
+        """Sent by each gateway agent every few seconds with its VRRP state and live version."""
+        if name not in deps.settings.gateways:
+            raise Problem(404, "not-found", "Not Found", f"gateway {name} is not configured")
+        with conn.transaction():
+            prev = conn.execute("SELECT vrrp_state FROM gateway_status WHERE gateway = %s"
+                                " FOR UPDATE", (name,)).fetchone()
+            conn.execute(
+                "INSERT INTO gateway_status (gateway, vrrp_state, live_version, last_heartbeat)"
+                " VALUES (%s, %s, %s, now()) ON CONFLICT (gateway) DO UPDATE SET"
+                " vrrp_state = EXCLUDED.vrrp_state, live_version = EXCLUDED.live_version,"
+                " last_heartbeat = now()", (name, body.vrrp_state, body.live_version or None))
+            if (prev[0] if prev else None) != body.vrrp_state:
+                events.emit(conn, "gateway.vrrp", gateway=name, to=body.vrrp_state,
+                            **{"from": prev[0] if prev else None})
+        return Response(status_code=204)
+
     # ----------------------------------------------------------- config
+    @app.get("/v1/config/latest", tags=["config"], response_model=models.ConfigEnvelope,
+             responses={404: {"description": "No config has been compiled yet"}})
+    def config_latest(_: Principal = operator,
+                      conn: psycopg.Connection = Db) -> models.ConfigEnvelope:
+        """What a gateway agent's pull loop fetches in case a push was missed."""
+        r = conn.execute("SELECT version, sha256, signature, body FROM config_versions"
+                         " WHERE status IN ('pending', 'live') ORDER BY version DESC LIMIT 1"
+                         ).fetchone()
+        if r is None:
+            raise Problem(404, "not-found", "Not Found", "no config version has been compiled")
+        return models.ConfigEnvelope(version=r[0], sha256=r[1], signature=r[2], body=r[3])
+
     @app.get("/v1/config/versions", tags=["config"], response_model=models.ConfigVersions)
     def config_versions(limit: int = Query(50, ge=1, le=500), _: Principal = admin,
                         conn: psycopg.Connection = Db) -> models.ConfigVersions:

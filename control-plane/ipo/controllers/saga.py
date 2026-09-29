@@ -16,6 +16,8 @@ from typing import Any, Protocol
 import psycopg
 from psycopg.types.json import Jsonb
 
+from ipo import metrics
+
 
 class WorkerCrash(BaseException):
     """Simulates the process being killed. Deliberately not an Exception, so nothing catches it."""
@@ -83,6 +85,11 @@ class SagaRunner:
 
     # -- running
     def run_job(self, conn: psycopg.Connection, job: Job) -> str:
+        outcome = self._run_job(conn, job)
+        metrics.SAGA_JOBS.labels(job.kind, outcome).inc()
+        return outcome
+
+    def _run_job(self, conn: psycopg.Connection, job: Job) -> str:
         steps = self._steps[job.kind]
         if job.attempts > self._max_job_attempts:
             return self._compensate(conn, job, steps, "abandoned after repeated worker crashes")
@@ -95,11 +102,14 @@ class SagaRunner:
                 " ON CONFLICT (job_id, step) DO UPDATE SET status = 'running',"
                 "   started_at = now(), finished_at = NULL", (job.id, step.name))
             self._hook("before", step.name)
+            started = time.monotonic()
             try:
                 result = self._retrying(partial(step.run, conn, job))
             except Exception as e:
                 self._record(conn, job, step.name, "failed", {"error": str(e)})
+                metrics.SAGA_STEP_DURATION.labels(step.name).observe(time.monotonic() - started)
                 return self._compensate(conn, job, steps, f"{step.name}: {e}")
+            metrics.SAGA_STEP_DURATION.labels(step.name).observe(time.monotonic() - started)
             self._record(conn, job, step.name, "done", result)
             self._hook("after", step.name)
         conn.execute(

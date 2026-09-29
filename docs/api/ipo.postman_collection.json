@@ -101,6 +101,24 @@
       "name": "config",
       "item": [
         {
+          "name": "Config Latest",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/config/latest",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "config",
+                "latest"
+              ]
+            }
+          }
+        },
+        {
           "name": "Config Versions",
           "request": {
             "method": "GET",
@@ -242,6 +260,39 @@
                 }
               },
               "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Heartbeat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/gateways/:name/heartbeat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "gateways",
+                ":name",
+                "heartbeat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"vrrp_state\": \"string\",\n  \"live_version\": 1\n}"
             }
           }
         }

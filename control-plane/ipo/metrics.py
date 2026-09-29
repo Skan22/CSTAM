@@ -16,6 +16,11 @@ API_DURATION = Histogram(
     "ipo_api_request_duration_seconds", "Time to first response byte",
     ["method", "route", "status"])
 
+SAGA_STEP_DURATION = Histogram(
+    "ipo_saga_step_duration_seconds", "Time a saga step takes, retries included", ["step"])
+SAGA_JOBS = Counter(
+    "ipo_saga_jobs_total", "Jobs that reached a final outcome", ["kind", "outcome"])
+
 LEASE_STATES = ("free", "pooled", "leased", "draining", "quarantined")
 TEAM_STATES = ("pending", "active", "draining", "deleted", "failed")
 

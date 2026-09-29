@@ -1,0 +1,21 @@
+{
+  "cidr": "10.20.0.0/24",
+  "envelope": {
+    "body": "{\"http\":{\"middlewares\":{\"compress\":{\"compress\":{}},\"rate-limit\":{\"rateLimit\":{\"average\":100,\"burst\":50}},\"secure-headers\":{\"headers\":{\"contentTypeNosniff\":true,\"frameDeny\":true,\"stsSeconds\":31536000}}},\"routers\":{\"ipo-canary\":{\"entryPoints\":[\"web\"],\"rule\":\"Host(`canary.felcloud.test`)\",\"service\":\"ipo-canary\"},\"t-alpha-felcloud-test\":{\"entryPoints\":[\"web\"],\"middlewares\":[\"secure-headers\",\"compress\"],\"rule\":\"Host(`alpha.felcloud.test`)\",\"service\":\"t-alpha-felcloud-test\"},\"t-beta-felcloud-test\":{\"entryPoints\":[\"web\"],\"middlewares\":[\"rate-limit\"],\"rule\":\"Host(`beta.felcloud.test`)\",\"service\":\"t-beta-felcloud-test\"},\"t-gamma-felcloud-test\":{\"entryPoints\":[\"web\"],\"rule\":\"Host(`gamma.felcloud.test`)\",\"service\":\"t-gamma-felcloud-test\"}},\"services\":{\"ipo-canary\":{\"loadBalancer\":{\"servers\":[{\"url\":\"http://127.0.0.1:8082\"}]}},\"t-alpha-felcloud-test\":{\"loadBalancer\":{\"servers\":[{\"url\":\"http://10.20.0.11:8080\"}]}},\"t-beta-felcloud-test\":{\"loadBalancer\":{\"servers\":[{\"url\":\"http://10.20.0.12:8080\"}]}},\"t-gamma-felcloud-test\":{\"loadBalancer\":{\"servers\":[{\"url\":\"http://10.20.0.109:8080\"}]}}}}}",
+    "sha256": "9ce0f740bd536a8969360211621436d7518c0ea6b1d915733f102ad827409e3c",
+    "signature": "WvudFUjL9fFzrfNOrmtHzFNQXQtZyFcA+DHrxRr6EWSXBB3ZgaLPCXGqlnHbSndgZ0dVP+ZstPyGTOWiwCWYCg==",
+    "version": 42
+  },
+  "middlewares": [
+    "compress",
+    "rate-limit",
+    "secure-headers"
+  ],
+  "public_key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "routers": [
+    "ipo-canary",
+    "t-alpha-felcloud-test",
+    "t-beta-felcloud-test",
+    "t-gamma-felcloud-test"
+  ]
+}

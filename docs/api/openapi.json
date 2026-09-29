@@ -93,6 +93,34 @@
         "title": "ChainStatus",
         "type": "object"
       },
+      "ConfigEnvelope": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "sha256",
+          "signature",
+          "body"
+        ],
+        "title": "ConfigEnvelope",
+        "type": "object"
+      },
       "ConfigVersionDetail": {
         "properties": {
           "body": {
@@ -294,6 +322,33 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Heartbeat": {
+        "additionalProperties": false,
+        "properties": {
+          "live_version": {
+            "description": "0 when the agent has no config yet",
+            "minimum": 0.0,
+            "title": "Live Version",
+            "type": "integer"
+          },
+          "vrrp_state": {
+            "enum": [
+              "MASTER",
+              "BACKUP",
+              "FAULT",
+              "UNKNOWN"
+            ],
+            "title": "Vrrp State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vrrp_state",
+          "live_version"
+        ],
+        "title": "Heartbeat",
         "type": "object"
       },
       "Ipam": {
@@ -1156,6 +1211,42 @@
         ]
       }
     },
+    "/v1/config/latest": {
+      "get": {
+        "description": "What a gateway agent's pull loop fetches in case a push was missed.",
+        "operationId": "config_latest_v1_config_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid token"
+          },
+          "403": {
+            "description": "Role too low"
+          },
+          "404": {
+            "description": "No config has been compiled yet"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Config Latest",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/v1/config/rollback": {
       "post": {
         "operationId": "config_rollback_v1_config_rollback_post",
@@ -1436,6 +1527,66 @@
           }
         ],
         "summary": "Failover",
+        "tags": [
+          "gateways"
+        ]
+      }
+    },
+    "/v1/gateways/{name}/heartbeat": {
+      "post": {
+        "description": "Sent by each gateway agent every few seconds with its VRRP state and live version.",
+        "operationId": "heartbeat_v1_gateways__name__heartbeat_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Heartbeat"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid token"
+          },
+          "403": {
+            "description": "Role too low"
+          },
+          "404": {
+            "description": "Not a configured gateway"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Heartbeat",
         "tags": [
           "gateways"
         ]

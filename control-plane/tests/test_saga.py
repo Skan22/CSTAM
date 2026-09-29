@@ -188,3 +188,25 @@ def test_two_workers_never_run_the_same_job(dsn: str) -> None:
         job = a.claim(c1)
         assert job is not None
         assert b.claim(c2) is None  # locked and not stale
+
+
+def _sample(name: str, **labels: str) -> float:
+    from prometheus_client import REGISTRY
+    return REGISTRY.get_sample_value(name, labels) or 0.0
+
+
+def test_saga_metrics_count_steps_and_outcomes(dsn: str) -> None:
+    env, _, gw, pr = setup(dsn, warm=True)
+    steps = _sample("ipo_saga_step_duration_seconds_count", step="route")
+    done = _sample("ipo_saga_jobs_total", kind="register_team", outcome="succeeded")
+    assert runner(env, gw, pr).run_once() == "succeeded"
+    assert _sample("ipo_saga_step_duration_seconds_count", step="route") == steps + 1
+    assert _sample("ipo_saga_jobs_total", kind="register_team", outcome="succeeded") == done + 1
+
+
+def test_saga_metrics_count_compensation(dsn: str) -> None:
+    env, _, gw, pr = setup(dsn, warm=True)
+    before = _sample("ipo_saga_jobs_total", kind="register_team", outcome="compensated")
+    _break("probe", env, gw, pr)
+    assert runner(env, gw, pr).run_once() == "compensated"
+    assert _sample("ipo_saga_jobs_total", kind="register_team", outcome="compensated") == before + 1

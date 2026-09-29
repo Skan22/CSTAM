@@ -1,7 +1,7 @@
 """Request and response models. The OpenAPI document is generated from these."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -109,6 +109,18 @@ class Gateway(BaseModel):
 
 class Gateways(BaseModel):
     gateways: list[Gateway]
+
+
+class Heartbeat(Strict):
+    vrrp_state: Literal["MASTER", "BACKUP", "FAULT", "UNKNOWN"]
+    live_version: int = Field(ge=0, description="0 when the agent has no config yet")
+
+
+class ConfigEnvelope(BaseModel):
+    version: int
+    sha256: str
+    signature: str
+    body: str
 
 
 class FailoverRequest(Strict):

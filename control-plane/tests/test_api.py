@@ -144,6 +144,9 @@ ROLE_MATRIX = [
     ("GET", "/v1/gateways", None, "viewer"),
     ("POST", "/v1/teams", {"slug": "matrix"}, "operator"),
     ("POST", "/v1/gateways/failover", {}, "admin"),
+    ("POST", "/v1/gateways/gw-a/heartbeat", {"vrrp_state": "MASTER", "live_version": 0},
+     "operator"),
+    ("GET", "/v1/config/latest", None, "operator"),
     ("GET", "/v1/config/versions", None, "admin"),
     ("POST", "/v1/config/rollback", {"version": 999}, "admin"),
     ("GET", "/v1/settings", None, "admin"),
@@ -383,6 +386,50 @@ def test_one_config_version_can_be_read_with_its_body(api: Api) -> None:
     v = api.client.get("/v1/config/versions/1", headers=api.h("admin")).json()
     assert json.loads(v["body"])["http"]["routers"] and v["signature"]
     assert api.client.get("/v1/config/versions/9", headers=api.h("admin")).status_code == 404
+
+
+def test_heartbeat_records_state_and_version_and_announces_a_change(api: Api) -> None:
+    def beat(state: str, version: int) -> Any:
+        return api.client.post("/v1/gateways/gw-a/heartbeat", headers=api.h("operator"),
+                               json={"vrrp_state": state, "live_version": version})
+
+    with api.connect() as listener:
+        listener.execute("LISTEN ipo_events")
+        listener.commit()
+        assert beat("BACKUP", 3).status_code == 204
+        assert beat("BACKUP", 4).status_code == 204
+        assert beat("MASTER", 4).status_code == 204
+        seen = [json.loads(n.payload) for n in listener.notifies(timeout=0.5, stop_after=2)]
+    body = api.client.get("/v1/gateways", headers=api.h("viewer")).json()
+    gw = next(g for g in body["gateways"] if g["gateway"] == "gw-a")
+    assert gw["vrrp_state"] == "MASTER" and gw["live_version"] == 4 and gw["last_heartbeat"]
+    # only transitions are announced, not every beat
+    assert [(e["kind"], e["to"]) for e in seen] == [("gateway.vrrp", "BACKUP"),
+                                                    ("gateway.vrrp", "MASTER")]
+
+
+def test_heartbeat_rejects_unknown_gateways_and_bad_bodies(api: Api) -> None:
+    good = {"vrrp_state": "MASTER", "live_version": 1}
+    r = api.client.post("/v1/gateways/gw-zzz/heartbeat", json=good, headers=api.h("operator"))
+    assert r.status_code == 404
+    for bad in ({"vrrp_state": "KING", "live_version": 1}, {"vrrp_state": "MASTER"},
+                {"vrrp_state": "MASTER", "live_version": -1},
+                {**good, "extra": 1}):
+        r = api.client.post("/v1/gateways/gw-a/heartbeat", json=bad, headers=api.h("operator"))
+        assert r.status_code == 422, bad
+
+
+def test_latest_config_is_what_an_agent_pulls(api: Api) -> None:
+    assert api.client.get("/v1/config/latest", headers=api.h("operator")).status_code == 404
+    _two_versions(api)
+    r = api.client.get("/v1/config/latest", headers=api.h("operator"))
+    assert r.status_code == 200
+    env = r.json()
+    assert set(env) == {"version", "sha256", "signature", "body"} and env["version"] == 2
+    with api.connect() as c:
+        c.execute("UPDATE config_versions SET status = 'rejected' WHERE version = 2")
+    # a version an agent refused is not offered again
+    assert api.client.get("/v1/config/latest", headers=api.h("operator")).json()["version"] == 1
 
 
 # -------------------------------------------------------------- settings

@@ -1,0 +1,15 @@
+# UNTESTED example unit.
+[Unit]
+Description=IPO gateway agent
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/ipo-agent.env
+ExecStart=/usr/local/bin/ipo-agent
+RuntimeDirectory=ipo
+RuntimeDirectoryPreserve=yes
+StateDirectory=ipo-agent
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
