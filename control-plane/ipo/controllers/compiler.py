@@ -248,6 +248,15 @@ class HttpAgent:
             return Ack(True, int(data.get("live_version", envelope.version)))
         return Ack(False, int(data.get("live_version", 0)), data.get("error", r.text))
 
+    def fault(self) -> None:
+        """Ask the agent to stop keepalived's VRRP advertisements, forcing a failover."""
+        try:
+            r = self._client.post("/fault")
+        except self._httpx.TransportError as exc:
+            raise ConnectionError(str(exc)) from exc
+        if r.status_code != 200:
+            raise ConnectionError(f"agent answered {r.status_code} to /fault")
+
 
 # ------------------------------------------------------------ convergence
 class DbGateways:

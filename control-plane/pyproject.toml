@@ -12,6 +12,11 @@ dependencies = [
   "cryptography>=50.0.1",
   "httpx>=0.28.1",
   "prometheus-client>=0.26.0",
+  "fastapi>=0.142.0",
+  "uvicorn>=0.54.0",
+  "argon2-cffi>=25.1.0",
+  "pyjwt>=2.15.1",
+  "openstacksdk>=4.20.0",
 ]
 
 [dependency-groups]
@@ -30,6 +35,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"ipo/api/*" = ["B008"]  # FastAPI dependencies are declared as parameter defaults
 
 [tool.mypy]
 strict = true
