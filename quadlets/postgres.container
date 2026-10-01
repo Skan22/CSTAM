@@ -1,0 +1,33 @@
+# cp-1 runs the primary, cp-2 a streaming replica (the postgres role seeds it with
+# pg_basebackup before the first start).
+[Unit]
+Description=PostgreSQL
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=postgres
+Image=docker.io/library/postgres:18.6
+AutoUpdate=registry
+Network=host
+Volume=postgres.volume:/var/lib/postgresql
+Volume=%h/.config/ipo/postgres:/etc/ipo/postgres:ro
+Secret=ipo-postgres-password,target=/run/secrets/postgres-password,mode=0400,uid=999
+Environment=POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password
+Exec=postgres -c config_file=/etc/ipo/postgres/postgresql.conf
+ShmSize=256m
+NoNewPrivileges=true
+HealthCmd=pg_isready -h 127.0.0.1 -U postgres
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthStartPeriod=60s
+Notify=healthy
+
+[Service]
+Restart=always
+# Postgres must not be killed in the middle of a checkpoint.
+TimeoutStopSec=120
+
+[Install]
+WantedBy=default.target

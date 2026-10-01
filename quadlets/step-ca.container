@@ -1,0 +1,29 @@
+# cp-1: the platform's private CA. Gateways and the control plane enroll and renew against it
+# (roles/step_ca). Initialised on first start from the environment file.
+[Unit]
+Description=step-ca, the private certificate authority
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=step-ca
+Image=docker.io/smallstep/step-ca:0.30.2
+AutoUpdate=registry
+Network=host
+Volume=step-ca.volume:/home/step
+EnvironmentFile=%h/.config/ipo/step-ca.env
+Secret=ipo-ca-password,target=/run/secrets/ca-password,mode=0400,uid=1000
+Environment=DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/ca-password
+NoNewPrivileges=true
+DropCapability=all
+HealthCmd=step ca health --ca-url https://127.0.0.1:9000 --root /home/step/certs/root_ca.crt
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,66 @@
+---
+- name: Create the configuration and backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0755"
+  loop:
+    - "{{ postgres_config_dir }}"
+    - "/var/lib/{{ ipo_service_user }}/.local/share/ipo/backups"
+
+- name: Write the server configuration
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ postgres_config_dir }}/{{ item }}"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0644"
+  loop: [postgresql.conf, pg_hba.conf]
+  register: postgres_config
+
+- name: Install the backup scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ postgres_config_dir }}/{{ item }}"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0755"
+  loop: [ipo-backup.sh, ipo-upload.sh]
+
+- name: Store the database passwords
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: secret
+  vars:
+    podman_secret_name: "{{ item.name }}"
+    podman_secret_value: "{{ item.value }}"
+  loop:
+    - {name: ipo-postgres-password, value: "{{ postgres_superuser_password }}"}
+    - {name: ipo-replication-password, value: "{{ postgres_replication_password }}"}
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Seed the replica from the primary
+  ansible.builtin.include_tasks: replica.yml
+  when: not postgres_is_primary
+
+- name: Run Postgres
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: quadlet
+  vars:
+    podman_units: [postgres.container, postgres.volume]
+    podman_dropins:
+      postgres.container: "[Container]\nImage={{ postgres_image }}\n"
+    podman_start: [postgres.service]
+    podman_restart: "{{ postgres_config is changed }}"
+
+- name: Create the roles and the database
+  ansible.builtin.include_tasks: bootstrap.yml
+  when: postgres_is_primary
+
+- name: Back up nightly from the primary
+  ansible.builtin.include_tasks: backup.yml
+  when: postgres_is_primary

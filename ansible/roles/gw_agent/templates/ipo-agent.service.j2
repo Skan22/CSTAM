@@ -1,0 +1,50 @@
+# Managed by Ansible (role gw_agent). The agent needs no privilege: it listens above 1024, writes
+# its own state directory and /run/ipo/fault, and reads Traefik's log and its certificates.
+[Unit]
+Description=IPO gateway agent
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ gw_agent_user }}
+Group={{ gw_agent_user }}
+EnvironmentFile={{ gw_agent_env_file }}
+ExecStart=/usr/local/bin/ipo-agent
+StateDirectory=ipo-agent
+StateDirectoryMode=0755
+ReadWritePaths=/run/ipo
+Restart=always
+RestartSec=2
+UMask=0022
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+DevicePolicy=closed
+IPAddressDeny=any
+IPAddressAllow=localhost {{ ipo_platform.network.mgmt_cidr }}
+
+[Install]
+WantedBy=multi-user.target

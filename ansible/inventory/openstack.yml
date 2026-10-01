@@ -1,0 +1,13 @@
+---
+# Every VM Pulumi created, grouped by its `role` metadata tag (gateways, control_plane, relays,
+# bastions) and reached on its mgmt-net address through WireGuard. Credentials come from
+# clouds.yaml (OS_CLOUD). inventory/static.yml lists the same hosts for when the API is down.
+plugin: openstack.cloud.openstack
+fail_on_errors: true
+expand_hostvars: false
+keyed_groups:
+  - key: openstack.metadata.role
+    prefix: ""
+    separator: ""
+compose:
+  ansible_host: openstack.addresses['mgmt-net'] | map(attribute='addr') | first

@@ -1,0 +1,31 @@
+---
+# Renews every host certificate now, ahead of the timer (after a CA change, or to test renewal).
+- name: Renew and reload
+  hosts: gateways:control_plane
+  become: true
+  serial: 1
+  tasks:
+    - name: Renew this host's certificate whatever its age
+      ansible.builtin.command:
+        argv: [step, ca, renew, --force, --ca-url, "{{ ipo_ca_url }}", --root, "{{ ipo_pki_dir }}/root_ca.crt",
+               "{{ ipo_pki_dir }}/host.crt", "{{ ipo_pki_dir }}/host.key"]
+      changed_when: true
+
+    - name: Keep the key readable by its users only
+      ansible.builtin.file:
+        path: "{{ ipo_pki_dir }}/host.key"
+        group: ipo-pki
+        mode: "0640"
+
+    - name: Restart the agent
+      ansible.builtin.systemd_service:
+        name: ipo-agent.service
+        state: restarted
+      when: inventory_hostname in groups['gateways']
+
+    - name: Restart the control plane and its front
+      ansible.builtin.command:
+        argv: [systemctl, --user, "--machine={{ ipo_service_user }}@", restart,
+               ipo-control-plane.service, ipo-web.service]
+      when: inventory_hostname in groups['control_plane']
+      changed_when: true

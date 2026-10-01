@@ -184,7 +184,8 @@ class IsolationLab:
                 f"    ip daddr {fip} dnat to {inside}\n  }}\n}}\n"))
 
     def _sysctls(self, host: str) -> None:
-        text = render.render("hardening", "sysctl.conf.j2", hardening_sysctl_extra={})
+        text = render.render("hardening", "sysctl.conf.j2", **render.role_vars(
+            "hardening", host, plat=self.platform, spec=self.spec))
         for line in text.splitlines():
             if line.strip() and not line.startswith("#"):
                 key, value = (x.strip() for x in line.split("=", 1))
@@ -215,10 +216,12 @@ class IsolationLab:
     # ------------------------------------------------------------------ layers
 
     def host_ruleset(self, host: str, spec: dict[str, Any]) -> str:
-        group = self.nodes[host].group
-        return render.render("hardening", "nftables.conf.j2", hardening_group=group,
-                             hardening_ingress=ipo_net.ingress(spec, self.platform, group),
-                             hardening_extra_input=[])
+        """What the `hardening` role writes to this host, from its defaults and group_vars. The
+        include of /etc/nftables.d is dropped: in the lab it would read this machine's files."""
+        text = render.render("hardening", "nftables.conf.j2", **render.role_vars(
+            "hardening", host, plat=self.platform, spec=spec))
+        return "".join(line for line in text.splitlines(keepends=True)
+                       if not line.startswith("include "))
 
     def fabric_ruleset(self, spec: dict[str, Any]) -> str:
         vip = self.platform["network"]["vip"]
@@ -337,6 +340,11 @@ class IsolationLab:
                    dport: int, payload: str) -> None:
         netns.run([sys.executable, str(HERE / "inject.py"), "frame", net, dst.mac, src_mac, src_ip,
                    dst.ip, str(dport), payload], ns=machine)
+
+    def flood(self, machine: str, dst_ip: str, port: int, count: int, rate: int,
+              payload: str) -> None:
+        netns.run([sys.executable, str(HERE / "inject.py"), "flood", dst_ip, str(port), str(count),
+                   str(rate), payload], ns=machine)
 
     def send_ipproto(self, machine: str, proto: int, dst_ip: str, payload: str) -> None:
         netns.run([sys.executable, str(HERE / "inject.py"), "ipproto", str(proto), dst_ip, payload],

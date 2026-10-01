@@ -1,0 +1,71 @@
+---
+- name: Refuse anything but Debian (Alloy comes from Grafana's apt repository)
+  ansible.builtin.assert:
+    that: ansible_facts['os_family'] == 'Debian'
+    fail_msg: The alloy role installs from apt.grafana.com and supports Debian only.
+
+- name: Create the apt keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Trust Grafana's package signing key
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /etc/apt/keyrings/grafana.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add Grafana's package repository
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signed_by: /etc/apt/keyrings/grafana.asc
+
+- name: Install Alloy
+  ansible.builtin.apt:
+    name: "alloy={{ alloy_version }}"
+    update_cache: true
+
+- name: Let Alloy read the journal
+  ansible.builtin.user:
+    name: alloy
+    groups: [systemd-journal]
+    append: true
+
+- name: Point Alloy at its configuration directory
+  ansible.builtin.template:
+    src: alloy.default.j2
+    dest: /etc/default/alloy
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Alloy
+
+- name: Write the host's Alloy configuration
+  ansible.builtin.template:
+    src: host.alloy.j2
+    dest: /etc/alloy/host.alloy
+    owner: root
+    group: alloy
+    mode: "0640"
+  notify: Reload Alloy
+
+- name: Remove the package's example configuration
+  ansible.builtin.file:
+    path: /etc/alloy/config.alloy
+    state: absent
+  notify: Reload Alloy
+
+- name: Run Alloy
+  ansible.builtin.systemd_service:
+    name: alloy
+    enabled: true
+    state: started

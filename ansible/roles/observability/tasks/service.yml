@@ -1,0 +1,38 @@
+---
+- name: Write the configuration of {{ observability_service.name }}
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ observability_config_dir }}/{{ item }}"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0644"
+  loop: "{{ observability_service.templates }}"
+  register: observability_templates
+
+- name: Copy repository files for {{ observability_service.name }}
+  ansible.builtin.copy:
+    src: "{{ observability_source }}/{{ item.src }}"
+    dest: "{{ observability_config_dir }}/{{ item.dest }}"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0644"
+  loop: "{{ observability_service.files }}"
+  register: observability_files
+
+- name: Copy the dashboards
+  ansible.builtin.copy:
+    src: "{{ observability_source }}/dashboards/"
+    dest: "{{ observability_config_dir }}/grafana/dashboards/"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0644"
+  when: observability_service.name == 'grafana'
+
+- name: Run {{ observability_service.name }}
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: quadlet
+  vars:
+    podman_units: "{{ observability_service.units }}"
+    podman_start: ["{{ observability_service.name }}.service"]
+    podman_restart: "{{ observability_templates is changed or observability_files is changed }}"

@@ -1,0 +1,22 @@
+---
+podman_user: "{{ ipo_service_user | default('ipo') }}"
+podman_home: "/var/lib/{{ podman_user }}"
+# The units use Notify=healthy, Entrypoint= and UserNS=keep-id:uid= (Podman 5.0).
+podman_min_version: "5.0"
+podman_registry_mirror: ""
+podman_subid_start: 200000
+podman_subid_count: 65536
+podman_packages:
+  Debian: [podman, passt, uidmap]
+  RedHat: [podman, passt, shadow-utils]
+podman_quadlet_dir: "{{ podman_home }}/.config/containers/systemd"
+podman_user_unit_dir: "{{ podman_home }}/.config/systemd/user"
+podman_config_dir: "{{ podman_home }}/.config/ipo"
+podman_data_dir: "{{ podman_home }}/.local/share/ipo"
+
+# Inputs of tasks/quadlet.yml, which the service roles include.
+podman_units: []          # file names in the repository's quadlets/ directory
+podman_timers: []         # plain systemd timers from quadlets/, installed as user units
+podman_dropins: {}        # {unit file name: drop-in content}, e.g. a pinned image tag
+podman_start: []          # services to start (and restart when podman_restart is true)
+podman_restart: false     # set by the caller when its own config files changed

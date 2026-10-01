@@ -1,0 +1,15 @@
+---
+- name: Install what every sandbox needs
+  ansible.builtin.package:
+    name: "{{ image_bake_packages }}"
+    state: present
+
+- name: Read only the config drive (sandbox-net has no DHCP and no metadata route)
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (role image_bake).
+      datasource_list: [ConfigDrive, None]
+    dest: /etc/cloud/cloud.cfg.d/90-ipo.cfg
+    owner: root
+    group: root
+    mode: "0644"

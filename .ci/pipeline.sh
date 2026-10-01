@@ -9,6 +9,13 @@ echo "== control-plane: lint, types, tests"
 echo "== system tests: lint, types, spec cross-checks"
 (cd tests && uv sync --locked && uv run ruff check . && uv run mypy && uv run pytest -q)
 
+echo "== deploy: ansible-lint, playbook syntax, every rendered config read by its real program"
+(cd tests && uv sync --locked --group deploy && sh lab/fetch-tools.sh validators >/dev/null \
+  && (cd ../ansible && ../tests/.venv/bin/ansible-lint </dev/null \
+      && for pb in playbooks/*.yml; do ../tests/.venv/bin/ansible-playbook -i inventory/static.yml \
+           --syntax-check "$pb" </dev/null; done) \
+  && uv run pytest -q deploy)
+
 echo "== isolation lab: every path against security-groups.yaml, both layers and each alone"
 (cd tests && uv run python -m isolation.run -q)
 

@@ -1,0 +1,7 @@
+# Managed by Ansible (role podman): pull docker.io images through the platform's mirror.
+[[registry]]
+prefix = "docker.io"
+location = "docker.io"
+
+[[registry.mirror]]
+location = "{{ podman_registry_mirror }}"

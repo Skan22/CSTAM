@@ -1,0 +1,25 @@
+# No health check: whether this image carries a shell or an HTTP client could not be checked here
+# (no Podman), and a check that cannot run would kill a healthy Loki. Prometheus alerts on it
+# instead, and auto-update rolls back only when the container fails to start.
+[Unit]
+Description=Loki
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=loki
+Image=docker.io/grafana/loki:3.7.8
+AutoUpdate=registry
+Network=host
+Volume=%h/.config/ipo/loki:/etc/loki:ro
+Volume=loki.volume:/loki
+Exec=-config.file=/etc/loki/loki.yml
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

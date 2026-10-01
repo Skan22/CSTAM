@@ -1,0 +1,23 @@
+---
+alloy_version: 1.20.1
+# gateway, control_plane, relay, bastion or sandbox (the baked image).
+alloy_role: >-
+  {{ {'gateways': 'gateway', 'control_plane': 'control_plane', 'relays': 'relay', 'bastions': 'bastion'}
+     .get(group_names | intersect(['gateways', 'control_plane', 'relays', 'bastions']) | first | default(''),
+          'sandbox') }}
+alloy_host_label: "{{ inventory_hostname }}"
+alloy_metrics_url: "http://{{ ipo_observability_ip }}:9090/api/v1/write"
+alloy_logs_url: "http://{{ ipo_observability_ip }}:3100/loki/api/v1/push"
+# Sandboxes cannot reach mgmt-net: they send everything to the relay over OTLP.
+alloy_relay_otlp_url: "http://{{ ipo_platform.network.hosts['relay'].sandbox }}:4318"
+# Local endpoints to scrape, by host role.
+alloy_scrape:
+  gateway:
+    - {name: traefik, job: traefik, address: "127.0.0.1:8080"}
+    - {name: agent, job: ipo-agent, address: "127.0.0.1:9100"}
+  control_plane:
+    - {name: api, job: ipo-api, address: "127.0.0.1:8001"}
+    - {name: podman, job: podman, address: "127.0.0.1:9882"}
+  relay: []
+  bastion: []
+  sandbox: []

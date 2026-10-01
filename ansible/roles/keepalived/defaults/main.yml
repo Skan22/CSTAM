@@ -27,3 +27,5 @@ keepalived_check_script: "{{ keepalived_bin_dir }}/ipo-check-traefik"
 keepalived_notify: "{{ keepalived_bin_dir }}/ipo-vrrp-notify"
 keepalived_state_file: /run/ipo/vrrp_state
 keepalived_fault_file: /run/ipo/fault
+# Shared by keepalived's notify script (writes vrrp_state) and ipo-agent (writes fault).
+keepalived_state_group: ipo-vrrp

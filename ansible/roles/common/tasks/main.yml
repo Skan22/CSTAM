@@ -1,0 +1,87 @@
+---
+- name: Install the base packages
+  ansible.builtin.package:
+    name: "{{ common_packages }}"
+    state: present
+
+- name: Pin package versions
+  ansible.builtin.template:
+    src: apt-pins.j2
+    dest: /etc/apt/preferences.d/90-ipo
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_facts['os_family'] == 'Debian' and common_package_pins | length > 0
+
+- name: Keep the clock synchronised
+  ansible.builtin.systemd_service:
+    name: "{{ 'chronyd' if ansible_facts['os_family'] == 'RedHat' else 'chrony' }}"
+    enabled: true
+    state: started
+
+- name: Make room for the journald drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Cap the journal
+  ansible.builtin.template:
+    src: journald.conf.j2
+    dest: /etc/systemd/journald.conf.d/90-ipo.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart journald
+
+- name: Create the service user that runs the containers
+  ansible.builtin.user:
+    name: "{{ common_service_user }}"
+    system: true
+    home: "{{ common_service_home }}"
+    create_home: true
+    shell: /usr/sbin/nologin
+
+- name: Create operator accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: ["{{ common_admin_group }}"]
+    append: true
+    shell: /bin/bash
+  loop: "{{ common_operators }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create operators' SSH directories
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0700"
+  loop: "{{ common_operators }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Authorise operators' SSH keys (and only those)
+  ansible.builtin.template:
+    src: authorized_keys.j2
+    dest: "/home/{{ item.name }}/.ssh/authorized_keys"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0600"
+  loop: "{{ common_operators }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Let operators use sudo
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: /etc/sudoers.d/90-ipo-operators
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  when: common_operators | length > 0

@@ -6,5 +6,6 @@ set -eu
 state="${1:?usage: ipo-vrrp-notify STATE [FILE]}"
 file="${2:-${IPO_VRRP_STATE_FILE:-/run/ipo/vrrp_state}}"
 tmp="${file}.tmp.$$"
+umask 022
 printf '%s\n' "$state" > "$tmp"
 mv -f "$tmp" "$file"

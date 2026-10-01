@@ -1,0 +1,30 @@
+# cp-2. Every host's Alloy scrapes its own targets and pushes here (remote write), so nothing
+# outside mgmt-net needs a port opened for scraping.
+[Unit]
+Description=Prometheus
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=prometheus
+Image=docker.io/prom/prometheus:v3.14.0
+AutoUpdate=registry
+Network=host
+Volume=%h/.config/ipo/prometheus:/etc/prometheus:ro
+Volume=prometheus.volume:/prometheus
+Exec=--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d --web.enable-remote-write-receiver --web.listen-address=:9090 --web.enable-lifecycle
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:9090/-/ready
+HealthInterval=15s
+HealthRetries=3
+HealthStartPeriod=60s
+HealthOnFailure=kill
+Notify=healthy
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

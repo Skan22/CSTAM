@@ -1,0 +1,25 @@
+---
+- name: Create the configuration directories
+  ansible.builtin.file:
+    path: "{{ observability_config_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0755"
+  loop: [prometheus, alertmanager, loki, tempo, grafana, grafana/provisioning,
+         grafana/provisioning/datasources, grafana/provisioning/dashboards, grafana/dashboards]
+
+- name: Store Grafana's admin password
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: secret
+  vars:
+    podman_secret_name: ipo-grafana-admin-password
+    podman_secret_value: "{{ observability_grafana_admin_password }}"
+
+- name: Configure and run each service
+  ansible.builtin.include_tasks: service.yml
+  loop: "{{ observability_services }}"
+  loop_control:
+    loop_var: observability_service
+    label: "{{ observability_service.name }}"

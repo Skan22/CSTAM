@@ -1,0 +1,95 @@
+// Managed by Ansible (role alloy): host metrics, the journal and this role's local endpoints.
+{% set to_relay = alloy_role == 'sandbox' %}
+prometheus.exporter.unix "host" { }
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.unix.host.targets
+  job_name        = "node"
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.host.receiver]
+}
+{% for t in alloy_scrape[alloy_role] %}
+
+prometheus.scrape "{{ t.name }}" {
+  targets         = [{"__address__" = "{{ t.address }}"}]
+  job_name        = "{{ t.job }}"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.relabel.host.receiver]
+}
+{% endfor %}
+
+prometheus.relabel "host" {
+  rule {
+    target_label = "instance"
+    replacement  = "{{ alloy_host_label }}"
+  }
+  rule {
+    target_label = "host_role"
+    replacement  = "{{ alloy_role }}"
+  }
+{% if to_relay %}
+  forward_to = [otelcol.receiver.prometheus.relay.receiver]
+{% else %}
+  forward_to = [prometheus.remote_write.platform.receiver]
+{% endif %}
+}
+
+loki.relabel "journal" {
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+  forward_to = []
+}
+
+loki.source.journal "host" {
+  max_age       = "12h"
+  relabel_rules = loki.relabel.journal.rules
+  labels        = {host = "{{ alloy_host_label }}", host_role = "{{ alloy_role }}"}
+{% if to_relay %}
+  forward_to    = [otelcol.receiver.loki.relay.receiver]
+{% else %}
+  forward_to    = [loki.write.platform.receiver]
+{% endif %}
+}
+{% if to_relay %}
+
+// A sandbox reaches only the relay, over OTLP (security-groups.yaml).
+otelcol.receiver.prometheus "relay" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.relay.input]
+  }
+}
+
+otelcol.receiver.loki "relay" {
+  output {
+    logs = [otelcol.exporter.otlphttp.relay.input]
+  }
+}
+
+otelcol.exporter.otlphttp "relay" {
+  client {
+    endpoint = "{{ alloy_relay_otlp_url }}"
+    tls {
+      insecure = true
+    }
+  }
+}
+{% else %}
+
+prometheus.remote_write "platform" {
+  endpoint {
+    url = "{{ alloy_metrics_url }}"
+  }
+}
+
+loki.write "platform" {
+  endpoint {
+    url = "{{ alloy_logs_url }}"
+  }
+}
+{% endif %}

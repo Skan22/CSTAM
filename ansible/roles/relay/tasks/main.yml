@@ -1,0 +1,11 @@
+---
+# Forwarding stays off (roles/hardening); the per-source rate limits are nftables rules from
+# inventory/group_vars/relay.yml, so a flood is dropped before Alloy sees it.
+- name: Write the relay pipeline
+  ansible.builtin.template:
+    src: relay.alloy.j2
+    dest: /etc/alloy/relay.alloy
+    owner: root
+    group: alloy
+    mode: "0640"
+  notify: Reload Alloy

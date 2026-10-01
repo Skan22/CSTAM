@@ -1,0 +1,11 @@
+# Managed by Ansible (role step_ca).
+[Unit]
+Description=Check this host's platform certificate for renewal
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=15m
+RandomizedDelaySec=2m
+
+[Install]
+WantedBy=timers.target

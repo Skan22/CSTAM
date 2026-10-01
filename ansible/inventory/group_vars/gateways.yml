@@ -1,0 +1,4 @@
+---
+hardening_sysctl_extra:
+  # Traefik runs rootless on the host network and must bind 80 and 443.
+  net.ipv4.ip_unprivileged_port_start: 80

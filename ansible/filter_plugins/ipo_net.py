@@ -64,6 +64,9 @@ def problems(spec: dict[str, Any], platform: dict[str, Any]) -> list[str]:
     """Cross-reference mistakes JSON Schema cannot see."""
     out = []
     hosts = set(platform["network"]["hosts"])
+    for group in spec.get("ephemeral", []):
+        if group not in spec["groups"]:
+            out.append(f"ephemeral names {group}, which has no rules")
     for group, members in spec["members"].items():
         if group not in spec["groups"]:
             out.append(f"members names {group}, which has no rules")
@@ -81,7 +84,8 @@ def problems(spec: dict[str, Any], platform: dict[str, Any]) -> list[str]:
             if r["from"] != INTERNET and r["from"] not in spec["groups"]:
                 out.append(f"{group} takes traffic from unknown group {r['from']}")
         for r in body["ingress"]:
-            if not group_addresses(spec, platform, group, r["network"]):
+            if group not in spec.get("ephemeral", []) and not group_addresses(
+                    spec, platform, group, r["network"]):
                 out.append(f"{group} has no port on {r['network']}, so a rule there can never apply")
         if group == "sg-sandbox" and any(r["from"] == INTERNET for r in body["ingress"]):
             out.append("sg-sandbox must never accept traffic from the internet")
@@ -117,6 +121,7 @@ class FilterModule:
     def filters(self) -> dict[str, Any]:
         return {
             "ipo_host_ingress": host_ingress,
+            "ipo_group_ingress": ingress,
             "ipo_group_of": group_of,
             "ipo_group_addresses": group_addresses,
             "ipo_nth_host": nth_host,

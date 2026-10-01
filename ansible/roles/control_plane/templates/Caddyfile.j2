@@ -1,0 +1,47 @@
+# Managed by Ansible (role control_plane). One origin for the dashboard, the API and Grafana.
+{
+	admin off
+	auto_https off
+}
+
+https://{{ ipo_mgmt_ip }}:{{ control_plane_web_port }} {
+	bind {{ ipo_mgmt_ip }}
+	tls {{ ipo_pki_dir }}/host.crt {{ ipo_pki_dir }}/host.key
+	encode zstd gzip
+
+	handle /v1/* {
+		reverse_proxy 127.0.0.1:{{ control_plane_api_port }}
+	}
+	handle /healthz {
+		reverse_proxy 127.0.0.1:{{ control_plane_api_port }}
+	}
+	handle /readyz {
+		reverse_proxy 127.0.0.1:{{ control_plane_api_port }}
+	}
+	handle /grafana/* {
+		reverse_proxy {{ control_plane_grafana_upstream }}
+	}
+	handle {
+		root * /srv/dashboard
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		# Grafana's panels are framed by the dashboard on this same origin, and by nothing else.
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy same-origin
+		-Server
+	}
+}
+
+# Loopback, plain HTTP, for the container's health check only.
+http://127.0.0.1:{{ control_plane_health_port }} {
+	bind 127.0.0.1
+	handle /healthz {
+		reverse_proxy 127.0.0.1:{{ control_plane_api_port }}
+	}
+	respond 404
+}

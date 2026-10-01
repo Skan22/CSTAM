@@ -1,0 +1,20 @@
+# Copies the dumps to object storage: an rclone remote (e.g. Swift) from the secrets file, and
+# IPO_BACKUP_REMOTE (e.g. swift:ipo-backups/dev) from backup.env.
+[Unit]
+Description=Upload database dumps to object storage
+Requires=postgres-backup.service
+After=postgres-backup.service
+
+[Container]
+ContainerName=postgres-backup-upload
+Image=docker.io/rclone/rclone:1.75.1
+Network=host
+Volume=%h/.local/share/ipo/backups:/backups:ro
+Volume=%h/.config/ipo/postgres/ipo-upload.sh:/usr/local/bin/ipo-upload:ro
+Secret=ipo-rclone-config,target=/config/rclone/rclone.conf
+EnvironmentFile=%h/.config/ipo/backup.env
+Entrypoint=/bin/sh
+Exec=/usr/local/bin/ipo-upload
+
+[Service]
+Type=oneshot

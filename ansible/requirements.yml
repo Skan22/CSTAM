@@ -1,0 +1,5 @@
+---
+# Only the inventory needs a collection; every role and playbook uses ansible.builtin.
+collections:
+  - name: openstack.cloud
+    version: ">=2.4.0,<3.0.0"

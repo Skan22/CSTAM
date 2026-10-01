@@ -1,0 +1,16 @@
+---
+postgres_image: docker.io/library/postgres:18.6
+postgres_primary: "{{ ipo_db_primary }}"
+postgres_is_primary: "{{ inventory_hostname == postgres_primary }}"
+postgres_primary_ip: "{{ ipo_platform.network.hosts[postgres_primary].mgmt }}"
+postgres_cp_ips: "{{ ipo_cp_hosts | map('extract', ipo_platform.network.hosts) | map(attribute='mgmt') | list }}"
+postgres_config_dir: "/var/lib/{{ ipo_service_user }}/.config/ipo/postgres"
+postgres_shared_buffers: 256MB
+postgres_max_connections: 100
+postgres_superuser_password: "{{ ipo_secrets.postgres_password }}"
+postgres_replication_password: "{{ ipo_secrets.replication_password }}"
+postgres_app_password: "{{ ipo_secrets.app_db_password }}"
+# An rclone remote and path for the nightly dumps, e.g. swift:ipo-backups/dev, and the rclone
+# config that defines it. Without them the dumps stay on the primary.
+postgres_backup_remote: "{{ ipo_secrets.backup_remote | default('') }}"
+postgres_rclone_config: "{{ ipo_secrets.rclone_config | default('') }}"

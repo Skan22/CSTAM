@@ -1,0 +1,23 @@
+# No health check, for the same reason as loki.container.
+[Unit]
+Description=Tempo
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=tempo
+Image=docker.io/grafana/tempo:2.10.8
+AutoUpdate=registry
+Network=host
+Volume=%h/.config/ipo/tempo:/etc/tempo:ro
+Volume=tempo.volume:/var/tempo
+Exec=-config.file=/etc/tempo/tempo.yml
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

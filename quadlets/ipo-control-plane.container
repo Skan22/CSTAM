@@ -1,0 +1,44 @@
+# cp-1 and cp-2: the API, saga workers and controllers (one process; replicas coordinate through
+# Postgres locks). Listens on :8001; ipo-web is the front door on :8000.
+[Unit]
+Description=IPO control plane
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=ipo-control-plane
+# The control_plane role sets the tag in a drop-in.
+Image=registry.felcloud.tn/ipo/control-plane:dev
+AutoUpdate=registry
+Network=host
+# The image runs as uid 10001; mapping it to the ipo user lets it read the host's PKI files.
+UserNS=keep-id:uid=10001,gid=10001
+# Keeps the ipo-pki group, which may read the host key used as the agents' client certificate.
+GroupAdd=keep-groups
+EnvironmentFile=%h/.config/ipo/control-plane.env
+Secret=ipo-database-url,type=env,target=IPO_DATABASE_URL
+Secret=ipo-jwt-secret,type=env,target=IPO_JWT_SECRET
+Secret=ipo-signing-key,type=env,target=IPO_SIGNING_KEY
+Secret=ipo-admin-password,type=env,target=IPO_ADMIN_PASSWORD
+# The gateway agents' logins (IPO_USERS_FILE).
+Secret=ipo-users
+Volume=%h/.config/ipo/platform.yaml:/etc/ipo/platform.yaml:ro
+Volume=%h/.config/openstack:/etc/openstack:ro
+Volume=/etc/ipo/pki:/etc/ipo/pki:ro
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+HealthCmd=python -m ipo.healthcheck
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=60s
+HealthOnFailure=kill
+Notify=healthy
+
+[Service]
+Restart=always
+TimeoutStartSec=180
+
+[Install]
+WantedBy=default.target

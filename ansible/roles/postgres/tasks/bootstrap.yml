@@ -1,0 +1,20 @@
+---
+- name: Wait for the primary to accept connections
+  ansible.builtin.command:
+    argv: [podman, exec, postgres, pg_isready, -h, 127.0.0.1, -U, postgres]
+  register: postgres_ready
+  until: postgres_ready.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+  become: true
+  become_user: "{{ ipo_service_user }}"
+
+- name: Create the roles and the database (idempotent SQL; passwords are set every run)
+  ansible.builtin.command:
+    argv: [podman, exec, -i, postgres, psql, -U, postgres, -f, "-"]
+    stdin: "{{ lookup('ansible.builtin.template', 'bootstrap.sql.j2') }}"
+  changed_when: false
+  no_log: true
+  become: true
+  become_user: "{{ ipo_service_user }}"

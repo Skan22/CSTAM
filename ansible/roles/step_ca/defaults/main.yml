@@ -1,0 +1,25 @@
+---
+step_ca_host: "{{ ipo_ca_host }}"
+step_ca_url: "{{ ipo_ca_url }}"
+step_ca_cli_version: 0.30.2
+step_ca_cli_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
+step_ca_cli_checksums:
+  amd64: sha256:abf5ffe9a39c01c7b4e777d50a96f30f33f5bd8eeafa2dfeef22b8a4abeee14a
+  arm64: sha256:7d66fa62949d64142b053db1c86ee29037088919cd329ac7966b15b09e914230
+step_ca_name: IPO platform CA
+step_ca_provisioner: ipo-admin
+step_ca_password: "{{ ipo_secrets.ca_password }}"
+step_ca_pki_dir: "{{ ipo_pki_dir }}"
+step_ca_pki_group: ipo-pki
+# Who may read the key: the agent on gateways, the rootless containers on the control plane.
+step_ca_key_readers: "{{ ['ipo-agent'] if inventory_hostname in groups.get('gateways', []) else [ipo_service_user] }}"
+# The agents accept the control plane by this common name (IPO_AGENT_ADMIN_CNS).
+step_ca_common_name: >-
+  {{ 'ipo-control-plane' if inventory_hostname in groups.get('control_plane', []) else inventory_hostname }}
+step_ca_sans: ["{{ inventory_hostname }}", "{{ ipo_mgmt_ip }}"]
+# Leaf certificates live 24 hours (the CA default); the timer renews once 8 hours are left.
+step_ca_renew_within: 8h
+# Restarted after a renewal so they load the new certificate.
+step_ca_reload_system: "{{ ['ipo-agent.service'] if inventory_hostname in groups.get('gateways', []) else [] }}"
+step_ca_reload_user: >-
+  {{ ['ipo-control-plane.service', 'ipo-web.service'] if inventory_hostname in groups.get('control_plane', []) else [] }}

@@ -1,0 +1,17 @@
+---
+- name: Look up the service user for the restart
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ipo_service_user }}"
+  listen: Restart the control plane
+
+- name: Restart the control plane service
+  ansible.builtin.systemd_service:
+    name: ipo-control-plane.service
+    scope: user
+    state: restarted
+  become: true
+  become_user: "{{ ipo_service_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][ipo_service_user][1] }}"
+  listen: Restart the control plane

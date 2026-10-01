@@ -1,0 +1,8 @@
+# Managed by Ansible (role postgres). TYPE DATABASE USER ADDRESS METHOD
+# The image's entrypoint and pg_isready work inside the container over the socket.
+local   all          postgres                       peer
+host    all          postgres     127.0.0.1/32      scram-sha-256
+{% for ip in postgres_cp_ips %}
+host    ipo          ipo          {{ ip }}/32       scram-sha-256
+host    replication  replicator   {{ ip }}/32       scram-sha-256
+{% endfor %}

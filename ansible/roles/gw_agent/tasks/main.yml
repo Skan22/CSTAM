@@ -1,0 +1,52 @@
+---
+- name: Create the agent's user
+  ansible.builtin.user:
+    name: "{{ gw_agent_user }}"
+    system: true
+    # Reads Traefik's access log (the service user's group) and writes the fault file.
+    groups: ["{{ ipo_service_user }}", "{{ keepalived_state_group | default('ipo-vrrp') }}"]
+    append: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Install the agent binary
+  ansible.builtin.copy:
+    src: "{{ gw_agent_binary_src }}"
+    dest: /usr/local/bin/ipo-agent
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart ipo-agent
+
+- name: Create /etc/ipo
+  ansible.builtin.file:
+    path: /etc/ipo
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the agent's environment
+  ansible.builtin.template:
+    src: agent.env.j2
+    dest: "{{ gw_agent_env_file }}"
+    owner: root
+    group: "{{ gw_agent_user }}"
+    mode: "0640"
+  notify: Restart ipo-agent
+
+- name: Install the agent's unit
+  ansible.builtin.template:
+    src: ipo-agent.service.j2
+    dest: /etc/systemd/system/ipo-agent.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart ipo-agent
+
+- name: Run the agent
+  ansible.builtin.systemd_service:
+    name: ipo-agent
+    enabled: true
+    state: started
+    daemon_reload: true

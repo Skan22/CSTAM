@@ -1,0 +1,81 @@
+---
+- name: Create the configuration and data directories
+  ansible.builtin.file:
+    path: "{{ control_plane_home }}/{{ item.path }}"
+    state: directory
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: .config/ipo/web, mode: "0755"}
+    - {path: .config/openstack, mode: "0700"}
+    - {path: .local/share/ipo/dashboard, mode: "0755"}
+
+- name: Give the control plane platform.yaml
+  ansible.builtin.copy:
+    src: "{{ ipo_repo_root }}/platform.yaml"
+    dest: "{{ control_plane_home }}/.config/ipo/platform.yaml"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0644"
+  notify: Restart the control plane
+
+- name: Write the environment and the OpenStack credentials
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ control_plane_home }}/{{ item.dest }}"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0600"
+  loop:
+    - {src: control-plane.env.j2, dest: .config/ipo/control-plane.env}
+    - {src: clouds.yaml.j2, dest: .config/openstack/clouds.yaml}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Restart the control plane
+
+- name: Store the control plane's secrets
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: secret
+  vars:
+    podman_secret_name: "{{ item.name }}"
+    podman_secret_value: "{{ item.value }}"
+    podman_secret_notify: Restart the control plane
+  loop:
+    - {name: ipo-database-url, value: "{{ control_plane_database_url }}"}
+    - {name: ipo-jwt-secret, value: "{{ control_plane_jwt_secret }}"}
+    - {name: ipo-signing-key, value: "{{ control_plane_signing_key }}"}
+    - {name: ipo-admin-password, value: "{{ control_plane_admin_password }}"}
+    - {name: ipo-users, value: "{{ lookup('ansible.builtin.template', 'users.json.j2') }}"}
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Publish the dashboard
+  ansible.builtin.copy:
+    src: "{{ control_plane_dashboard_src }}"
+    dest: "{{ control_plane_home }}/.local/share/ipo/dashboard/"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "u=rwX,go=rX"
+
+- name: Write the web front's configuration
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ control_plane_home }}/.config/ipo/web/Caddyfile"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0644"
+  register: control_plane_caddyfile
+
+- name: Run the control plane, its web front and the Podman exporter
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: quadlet
+  vars:
+    podman_units: [ipo-control-plane.container, ipo-web.container, ipo-web.volume,
+                   podman-exporter.container]
+    podman_dropins:
+      ipo-control-plane.container: "[Container]\nImage={{ control_plane_image }}\n"
+    podman_start: [ipo-control-plane.service, ipo-web.service, podman-exporter.service]
+    podman_restart: "{{ control_plane_caddyfile is changed }}"

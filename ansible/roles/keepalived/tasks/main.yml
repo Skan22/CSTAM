@@ -1,0 +1,64 @@
+---
+- name: Install keepalived and curl (the health check uses it)
+  ansible.builtin.package:
+    name: [keepalived, curl]
+    state: present
+
+- name: Create the group that shares /run/ipo with ipo-agent
+  ansible.builtin.group:
+    name: "{{ keepalived_state_group }}"
+    system: true
+
+- name: Create the user keepalived runs its scripts as
+  ansible.builtin.user:
+    name: "{{ keepalived_script_user }}"
+    system: true
+    groups: ["{{ keepalived_state_group }}"]
+    append: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Create /run/ipo at every boot, with the fault file at 0
+  ansible.builtin.template:
+    src: tmpfiles.conf.j2
+    dest: /etc/tmpfiles.d/ipo.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply the tmpfiles entry
+
+- name: Create /run/ipo before keepalived first notifies
+  ansible.builtin.meta: flush_handlers
+
+- name: Create the script directory
+  ansible.builtin.file:
+    path: "{{ keepalived_bin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the health check and the notify hook
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ keepalived_bin_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop: [ipo-check-traefik, ipo-vrrp-notify]
+
+- name: Write keepalived.conf
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: keepalived --config-test --use-file %s
+  notify: Reload keepalived
+
+- name: Run keepalived
+  ansible.builtin.systemd_service:
+    name: keepalived
+    enabled: true
+    state: started

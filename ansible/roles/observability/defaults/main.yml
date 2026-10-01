@@ -1,0 +1,35 @@
+---
+observability_home: "/var/lib/{{ ipo_service_user }}"
+observability_config_dir: "{{ observability_home }}/.config/ipo"
+observability_source: "{{ ipo_repo_root }}/observability"
+observability_retention: 15d
+observability_log_retention: 336h
+observability_trace_retention: 168h
+# A webhook (Slack, Matrix, ntfy...) that receives every alert; empty keeps them in Alertmanager.
+observability_alert_webhook: "{{ ipo_secrets.alert_webhook | default('') }}"
+observability_grafana_admin_password: "{{ ipo_secrets.grafana_admin_password }}"
+# What the browser sees: the control plane's front proxies /grafana/ here (roles/control_plane).
+observability_grafana_root_url: "https://{{ ipo_platform.network.hosts[ipo_db_primary].mgmt }}:8000/grafana/"
+# One entry per service: its Quadlets and the config files it reads (templates or copies).
+observability_services:
+  - name: prometheus
+    units: [prometheus.container, prometheus.volume]
+    templates: [prometheus/prometheus.yml]
+    files: [{src: alerts.yml, dest: prometheus/alerts.yml}]
+  - name: alertmanager
+    units: [alertmanager.container, alertmanager.volume]
+    templates: [alertmanager/alertmanager.yml]
+    files: []
+  - name: loki
+    units: [loki.container, loki.volume]
+    templates: [loki/loki.yml]
+    files: []
+  - name: tempo
+    units: [tempo.container, tempo.volume]
+    templates: [tempo/tempo.yml]
+    files: []
+  - name: grafana
+    units: [grafana.container, grafana.volume]
+    templates: [grafana/grafana.ini, grafana/provisioning/datasources/ipo.yml,
+                grafana/provisioning/dashboards/ipo.yml]
+    files: []

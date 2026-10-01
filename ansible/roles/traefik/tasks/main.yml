@@ -1,0 +1,43 @@
+---
+- name: Create Traefik's directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /etc/traefik, owner: root, mode: "0755"}
+    # Written by the rootless container (root inside is the service user outside); ipo-agent
+    # reads the access log through the service user's group.
+    - {path: "{{ traefik_access_log | dirname }}", owner: "{{ ipo_service_user }}", mode: "0750"}
+    - {path: "{{ traefik_acme_storage | dirname }}", owner: "{{ ipo_service_user }}", mode: "0700"}
+
+- name: Write the static configuration
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: "{{ traefik_static_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: traefik_static
+
+- name: Seed an empty route file until ipo-agent writes a verified version
+  ansible.builtin.copy:
+    content: "# Replaced by ipo-agent with each verified config version.\n{}\n"
+    dest: "{{ traefik_live_config }}"
+    owner: ipo-agent
+    group: ipo-agent
+    mode: "0644"
+    force: false
+
+- name: Run Traefik
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: quadlet
+  vars:
+    podman_units: [traefik.container]
+    podman_dropins:
+      traefik.container: "[Container]\nImage={{ traefik_image }}\n"
+    podman_start: [traefik.service]
+    podman_restart: "{{ traefik_static is changed }}"

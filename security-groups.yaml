@@ -12,6 +12,9 @@ members:
   sg-relay: [relay]
   sg-bastion: [bastion]
   sg-sandbox: []              # every address of ip_pool, plus nothing else
+  sg-builder: []              # the throwaway VM bake_image.yml boots
+# Groups whose ports come and go outside platform.yaml, so having no fixed address is expected.
+ephemeral: [sg-builder]
 groups:
   sg-gateway:
     ingress:
@@ -25,9 +28,12 @@ groups:
   sg-control:
     ingress:
       - {network: mgmt, from: sg-gateway, proto: tcp, ports: [8000], why: "agents report heartbeats and traffic"}
+      - {network: mgmt, from: sg-gateway, proto: tcp, ports: [9000], why: "certificate renewal at the CA on cp-1"}
+      - {network: mgmt, from: sg-gateway, proto: tcp, ports: [9090, 3100], why: "Alloy pushes metrics and logs"}
       - {network: mgmt, from: sg-control, proto: any, why: "the pair: replication, scraping, observability"}
       - {network: mgmt, from: sg-relay, proto: tcp, ports: [9090, 3100, 4317], why: "relay forwards sandbox telemetry"}
-      - {network: mgmt, from: sg-bastion, proto: tcp, ports: [22, 3000, 8000], why: "operators: SSH, Grafana, API"}
+      - {network: mgmt, from: sg-bastion, proto: tcp, ports: [22, 8000], why: "operators: SSH; dashboard, API and Grafana (/grafana/) on the front"}
+      - {network: mgmt, from: sg-bastion, proto: tcp, ports: [9090, 3100], why: "Alloy pushes metrics and logs"}
   sg-relay:
     ingress:
       - {network: sandbox, from: sg-sandbox, proto: tcp, ports: [4317, 4318], why: "sandbox telemetry in"}
@@ -36,6 +42,9 @@ groups:
   sg-bastion:
     ingress:
       - {network: mgmt, from: internet, proto: udp, ports: [51820], why: "WireGuard"}
+  sg-builder:
+    ingress:
+      - {network: mgmt, from: sg-bastion, proto: tcp, ports: [22], why: "Ansible bakes the sandbox image"}
 # The only thing the internet may reach on the floating IP (which maps to the VIP).
 public:
   floating_ip_ports: [80, 443]

@@ -1,14 +1,5 @@
-# Managed by Ansible. A host on this platform is never a router, and never trusts a spoofed source.
-net.ipv4.ip_forward = 0
-net.ipv6.conf.all.forwarding = 0
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv4.conf.default.accept_redirects = 0
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv4.conf.all.log_martians = 1
-net.ipv4.tcp_syncookies = 1
-{% for key, value in hardening_sysctl_extra.items() %}
+# Managed by Ansible. A host on this platform does not route and never trusts a spoofed source;
+# a group that must differ (the bastion forwards WireGuard traffic) overrides a key in group_vars.
+{% for key, value in (hardening_sysctl_baseline | combine(hardening_sysctl_extra)).items() %}
 {{ key }} = {{ value }}
 {% endfor %}

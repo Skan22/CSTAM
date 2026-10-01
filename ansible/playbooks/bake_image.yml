@@ -1,0 +1,69 @@
+---
+# Bakes the sandbox image: boot a builder, harden it, clean it, snapshot it, delete it.
+#   ansible-playbook playbooks/bake_image.yml -e @secrets.yaml -e image_version=2
+# Needs the openstack CLI and OS_CLOUD on the machine running Ansible.
+- name: Boot the builder
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    builder: "ipo-builder-{{ image_version }}"
+  tasks:
+    - name: Create the builder on mgmt-net, reachable only by the bastion (sg-builder)
+      ansible.builtin.command:
+        argv: [openstack, server, create, --wait, --format, json,
+               --image, "{{ ipo_platform.images.base }}", --flavor, "{{ ipo_platform.flavors.sandbox }}",
+               --network, mgmt-net, --security-group, sg-builder, --key-name, "{{ builder_key | default('ipo-ops') }}",
+               "{{ builder }}"]
+      register: bake_server
+      changed_when: true
+
+    - name: Add it to the inventory
+      ansible.builtin.add_host:
+        name: "{{ builder }}"
+        groups: [builder]
+        ansible_host: "{{ (bake_server.stdout | from_json).addresses['mgmt-net'][0] }}"
+
+- name: Harden and clean the image
+  hosts: builder
+  become: true
+  vars:
+    # A sandbox's own firewall mirrors sg-sandbox; the cloud's security group is what isolates it.
+    hardening_group: sg-sandbox
+    hardening_ingress: "{{ ipo_security_groups | ipo_group_ingress(ipo_platform, 'sg-sandbox') }}"
+  pre_tasks:
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+  roles:
+    - common
+    - hardening
+    - image_bake
+    - alloy
+  post_tasks:
+    - name: Clean up for the snapshot
+      ansible.builtin.include_role:
+        name: image_bake
+        tasks_from: cleanup
+
+- name: Snapshot and delete the builder
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    builder: "ipo-builder-{{ image_version }}"
+  tasks:
+    - name: Stop the builder so the snapshot is consistent
+      ansible.builtin.command:
+        argv: [openstack, server, stop, "{{ builder }}"]
+      changed_when: true
+
+    - name: Snapshot it as the next sandbox image
+      ansible.builtin.command:
+        argv: [openstack, server, image, create, --wait, --name, "ipo-sandbox-v{{ image_version }}", "{{ builder }}"]
+      changed_when: true
+
+    - name: Delete the builder
+      ansible.builtin.command:
+        argv: [openstack, server, delete, --wait, "{{ builder }}"]
+      changed_when: true

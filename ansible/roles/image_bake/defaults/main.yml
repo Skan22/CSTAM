@@ -1,0 +1,2 @@
+---
+image_bake_packages: [podman, passt, uidmap, cloud-init, nftables, ca-certificates]

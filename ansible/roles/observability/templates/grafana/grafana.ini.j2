@@ -1,0 +1,28 @@
+; Managed by Ansible (role observability). Grafana lives under /grafana/ on the control plane's
+; front, the dashboard's own origin, which is what lets the dashboard frame its panels with an
+; ordinary SameSite=Lax login cookie. Staff only: team accounts never see these panels.
+[server]
+http_port = 3000
+root_url = {{ observability_grafana_root_url }}
+serve_from_sub_path = true
+
+[security]
+allow_embedding = true
+cookie_secure = true
+cookie_samesite = lax
+disable_gravatar = true
+
+[auth.anonymous]
+enabled = false
+
+[users]
+allow_sign_up = false
+
+[analytics]
+reporting_enabled = false
+check_for_updates = false
+check_for_plugin_updates = false
+
+[log]
+mode = console
+level = warn

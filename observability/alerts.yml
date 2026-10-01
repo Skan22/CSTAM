@@ -1,5 +1,6 @@
-# Prometheus alert rules. Not yet loaded into a real Prometheus (no promtool or stack available
-# where this was written); tests/test_observability.py checks structure and metric names.
+# Prometheus alert rules, loaded by roles/observability. promtool checks them
+# (tests/deploy/test_configs.py) and control-plane/tests/test_observability.py checks the metric
+# names against what the code exports.
 groups:
   - name: ipo
     rules:

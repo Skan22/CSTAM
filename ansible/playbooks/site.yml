@@ -1,0 +1,28 @@
+---
+# Fresh Pulumi VMs to a running platform; safe to run again (a second run changes nothing).
+#   ansible-playbook playbooks/site.yml -e @secrets.yaml
+- name: Baseline every platform host
+  hosts: gateways:control_plane:relays:bastions
+  become: true
+  roles:
+    - common
+    - hardening
+    - alloy
+
+- name: Control plane, the CA and the observability stack
+  ansible.builtin.import_playbook: control_plane.yml
+
+- name: Gateways
+  ansible.builtin.import_playbook: gateways.yml
+
+- name: Relay
+  hosts: relays
+  become: true
+  roles:
+    - relay
+
+- name: Bastion
+  hosts: bastions
+  become: true
+  roles:
+    - bastion

@@ -1,0 +1,30 @@
+# Served under /grafana/ by ipo-web, the same origin as the dashboard that embeds its panels.
+[Unit]
+Description=Grafana
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=grafana
+Image=docker.io/grafana/grafana:13.2.3
+AutoUpdate=registry
+Network=host
+Volume=%h/.config/ipo/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+Volume=%h/.config/ipo/grafana/provisioning:/etc/grafana/provisioning:ro
+Volume=%h/.config/ipo/grafana/dashboards:/var/lib/ipo-dashboards:ro
+Volume=grafana.volume:/var/lib/grafana
+Secret=ipo-grafana-admin-password,type=env,target=GF_SECURITY_ADMIN_PASSWORD
+NoNewPrivileges=true
+DropCapability=all
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:3000/grafana/api/health
+HealthInterval=15s
+HealthRetries=3
+HealthStartPeriod=60s
+HealthOnFailure=kill
+Notify=healthy
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

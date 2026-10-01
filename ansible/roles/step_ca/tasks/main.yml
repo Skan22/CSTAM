@@ -1,0 +1,100 @@
+---
+- name: Run the CA
+  ansible.builtin.include_tasks: ca.yml
+  when: inventory_hostname == step_ca_host
+
+- name: Download the step CLI
+  ansible.builtin.get_url:
+    url: "https://github.com/smallstep/cli/releases/download/v{{ step_ca_cli_version }}/step_linux_{{ step_ca_cli_version }}_{{ step_ca_cli_arch }}.tar.gz"
+    dest: "/var/cache/step_{{ step_ca_cli_version }}_{{ step_ca_cli_arch }}.tar.gz"
+    checksum: "{{ step_ca_cli_checksums[step_ca_cli_arch] }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Unpack the step CLI
+  ansible.builtin.unarchive:
+    src: "/var/cache/step_{{ step_ca_cli_version }}_{{ step_ca_cli_arch }}.tar.gz"
+    dest: /usr/local/lib
+    remote_src: true
+    creates: "/usr/local/lib/step_{{ step_ca_cli_version }}/bin/step"
+
+- name: Put step on the path
+  ansible.builtin.file:
+    src: "/usr/local/lib/step_{{ step_ca_cli_version }}/bin/step"
+    dest: /usr/local/bin/step
+    state: link
+
+- name: Create the group that may read this host's key
+  ansible.builtin.group:
+    name: "{{ step_ca_pki_group }}"
+    system: true
+
+- name: Add the key's readers to it
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: ["{{ step_ca_pki_group }}"]
+    append: true
+  loop: "{{ step_ca_key_readers }}"
+
+- name: Create the PKI directory
+  ansible.builtin.file:
+    path: "{{ step_ca_pki_dir }}"
+    state: directory
+    owner: root
+    group: "{{ step_ca_pki_group }}"
+    mode: "0750"
+
+- name: Read the root fingerprint from the CA
+  ansible.builtin.command:
+    argv: [podman, exec, step-ca, step, certificate, fingerprint, /home/step/certs/root_ca.crt]
+  delegate_to: "{{ step_ca_host }}"
+  become: true
+  become_user: "{{ ipo_service_user }}"
+  run_once: true
+  register: step_ca_fingerprint
+  changed_when: false
+
+- name: Fetch the root certificate, checked against that fingerprint
+  ansible.builtin.command:
+    argv: [step, ca, root, "{{ step_ca_pki_dir }}/root_ca.crt", --ca-url, "{{ step_ca_url }}",
+           --fingerprint, "{{ step_ca_fingerprint.stdout | trim }}"]
+    creates: "{{ step_ca_pki_dir }}/root_ca.crt"
+
+- name: Trust the root system-wide (the agents' client verifies the control plane with it)
+  ansible.builtin.copy:
+    src: "{{ step_ca_pki_dir }}/root_ca.crt"
+    dest: /usr/local/share/ca-certificates/ipo-root.crt
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Rebuild the trust store
+
+- name: Trust the root before anything on this host dials the control plane
+  ansible.builtin.meta: flush_handlers
+
+- name: Check for this host's certificate
+  ansible.builtin.stat:
+    path: "{{ step_ca_pki_dir }}/host.crt"
+  register: step_ca_host_cert
+
+- name: Enroll
+  ansible.builtin.include_tasks: enroll.yml
+  when: not step_ca_host_cert.stat.exists
+
+- name: Install the renewal service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [ipo-cert-renew.service, ipo-cert-renew.timer]
+
+- name: Renew automatically
+  ansible.builtin.systemd_service:
+    name: ipo-cert-renew.timer
+    enabled: true
+    state: started
+    daemon_reload: true

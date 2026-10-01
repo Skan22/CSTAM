@@ -1,0 +1,4 @@
+---
+# relay.alloy extends the host configuration and uses its handlers.
+dependencies:
+  - role: alloy

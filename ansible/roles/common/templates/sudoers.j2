@@ -1,0 +1,4 @@
+# Managed by Ansible (role common).
+{% for op in common_operators %}
+{{ op.name }} ALL=(ALL:ALL) ALL
+{% endfor %}

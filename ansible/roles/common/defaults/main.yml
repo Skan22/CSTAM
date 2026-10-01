@@ -1,0 +1,11 @@
+---
+common_service_user: "{{ ipo_service_user | default('ipo') }}"
+common_service_home: "/var/lib/{{ common_service_user }}"
+# People who administer the platform: [{name: alice, ssh_keys: ["ssh-ed25519 AAAA... alice"]}].
+common_operators: []
+common_admin_group: sudo
+common_packages: [acl, ca-certificates, chrony, curl, jq, python3]
+common_journald_max_use: 500M
+common_journald_max_file: 50M
+# Exact versions to hold, e.g. {podman: "5.4.*"}; Debian only.
+common_package_pins: {}

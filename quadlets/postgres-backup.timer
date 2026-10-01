@@ -1,0 +1,12 @@
+# Installed into ~/.config/systemd/user/ (timers are plain systemd units, not Quadlets).
+[Unit]
+Description=Nightly database backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=postgres-backup-upload.service
+
+[Install]
+WantedBy=timers.target

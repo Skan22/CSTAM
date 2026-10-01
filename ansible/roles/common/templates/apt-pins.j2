@@ -1,0 +1,7 @@
+# Managed by Ansible (role common): versions held on purpose.
+{% for package, version in common_package_pins.items() %}
+Package: {{ package }}
+Pin: version {{ version }}
+Pin-Priority: 1001
+
+{% endfor %}

@@ -1,0 +1,13 @@
+-- Managed by Ansible (role postgres): roles and database, safe to run again. Passwords arrive on
+-- stdin, never on a command line.
+\set ON_ERROR_STOP on
+\set replication_password '{{ postgres_replication_password | replace("\\", "\\\\") | replace("'", "''") }}'
+\set app_password '{{ postgres_app_password | replace("\\", "\\\\") | replace("'", "''") }}'
+SELECT 'CREATE ROLE replicator WITH REPLICATION LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'replicator') \gexec
+SELECT 'CREATE ROLE ipo WITH LOGIN'
+ WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipo') \gexec
+ALTER ROLE replicator PASSWORD :'replication_password';
+ALTER ROLE ipo PASSWORD :'app_password';
+SELECT 'CREATE DATABASE ipo OWNER ipo'
+ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'ipo') \gexec

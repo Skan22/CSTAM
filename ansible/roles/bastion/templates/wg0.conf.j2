@@ -1,0 +1,12 @@
+# Managed by Ansible (role bastion). The private key stays in /etc/wireguard/private.key.
+[Interface]
+Address = {{ bastion_wg_address }}/{{ bastion_wg_cidr | default('10.99.0.0/24') | regex_replace('^.*/', '') }}
+ListenPort = {{ bastion_wg_port }}
+PostUp = wg set %i private-key /etc/wireguard/private.key
+{% for peer in bastion_peers %}
+
+# {{ peer.name }}
+[Peer]
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ peer.address }}/32
+{% endfor %}

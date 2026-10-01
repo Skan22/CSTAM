@@ -1,12 +1,27 @@
 ---
-# Both files live at the repository root and are loaded by the play (see playbooks/site.yml).
+# ipo_platform and ipo_security_groups are loaded from the repository root by
+# inventory/group_vars/all.yml.
 hardening_group: "{{ ipo_security_groups | ipo_group_of(inventory_hostname) }}"
 hardening_ingress: "{{ ipo_security_groups | ipo_host_ingress(ipo_platform, inventory_hostname) }}"
-# Extra lines for the input chain, e.g. a monitoring probe on one host.
+# Extra lines for the input chain, e.g. SSH over the bastion's WireGuard interface.
 hardening_extra_input: []
+# A host on this platform does not route; the bastion is the exception (see its group_vars).
+hardening_extra_forward: []
+# Per-source limits checked before anything else: [{name, match, rate, burst, why}].
+hardening_rate_limits: []
 hardening_nft_path: /etc/nftables.conf
-# Sysctls a role may add; the baseline is in templates/sysctl.conf.j2.
-# Gateways keep forwarding off too: Traefik terminates and re-originates, it never routes.
+hardening_sysctl_baseline:
+  net.ipv4.ip_forward: 0
+  net.ipv6.conf.all.forwarding: 0
+  net.ipv4.conf.all.rp_filter: 1
+  net.ipv4.conf.default.rp_filter: 1
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.tcp_syncookies: 1
+# Sysctls a group adds or overrides.
 hardening_sysctl_extra: {}
 hardening_ssh_allow_users: []
 hardening_selinux_state: enforcing

@@ -23,6 +23,14 @@
     validate: /usr/sbin/sshd -t -f %s
   notify: Reload sshd
 
+- name: Make room for tables other roles own
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
 - name: Render the firewall mirroring the security groups
   ansible.builtin.template:
     src: nftables.conf.j2

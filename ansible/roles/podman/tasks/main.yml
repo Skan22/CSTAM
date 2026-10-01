@@ -1,0 +1,77 @@
+---
+- name: Install Podman
+  ansible.builtin.package:
+    name: "{{ podman_packages[ansible_facts['os_family']] | default(podman_packages['Debian']) }}"
+    state: present
+
+- name: Read the Podman version
+  ansible.builtin.command: podman version --format "{{ '{{' }}.Client.Version{{ '}}' }}"
+  register: podman_version
+  changed_when: false
+
+- name: Refuse a Podman older than the units need
+  ansible.builtin.assert:
+    that: podman_version.stdout is version(podman_min_version, '>=')
+    fail_msg: >-
+      Podman {{ podman_version.stdout }} is older than {{ podman_min_version }}; the Quadlets use
+      Notify=healthy, Entrypoint= and UserNS=keep-id:uid=. Use Debian 13 or newer.
+
+- name: Give the service user subordinate IDs
+  ansible.builtin.lineinfile:
+    path: "/etc/{{ item }}"
+    regexp: "^{{ podman_user }}:"
+    line: "{{ podman_user }}:{{ podman_subid_start }}:{{ podman_subid_count }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [subuid, subgid]
+
+- name: Keep the service user's systemd running without a login
+  ansible.builtin.command: loginctl enable-linger {{ podman_user }}
+  args:
+    creates: "/var/lib/systemd/linger/{{ podman_user }}"
+
+- name: Create the Quadlet, unit, config and data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ podman_user }}"
+    group: "{{ podman_user }}"
+    mode: "0700"
+  loop:
+    - "{{ podman_home }}/.config"
+    - "{{ podman_home }}/.config/containers"
+    - "{{ podman_quadlet_dir }}"
+    - "{{ podman_home }}/.config/systemd"
+    - "{{ podman_user_unit_dir }}"
+    - "{{ podman_config_dir }}"
+    - "{{ podman_home }}/.local"
+    - "{{ podman_home }}/.local/share"
+    - "{{ podman_data_dir }}"
+
+- name: Pull through the registry mirror
+  ansible.builtin.template:
+    src: registries-mirror.conf.j2
+    dest: /etc/containers/registries.conf.d/50-ipo-mirror.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: podman_registry_mirror | length > 0
+
+- name: Look up the service user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ podman_user }}"
+
+- name: Start the auto-update timer and the API socket for the service user
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    scope: user
+    enabled: true
+    state: started
+  loop: [podman-auto-update.timer, podman.socket]
+  become: true
+  become_user: "{{ podman_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][podman_user][1] }}"

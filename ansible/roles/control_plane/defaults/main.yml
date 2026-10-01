@@ -1,0 +1,28 @@
+---
+control_plane_image: "{{ ipo_registry }}/control-plane:{{ ipo_release }}"
+# Built by CI: `cd dashboard && npm ci && npm run build`.
+control_plane_dashboard_src: "{{ ipo_repo_root }}/dashboard/dist/"
+control_plane_home: "/var/lib/{{ ipo_service_user }}"
+control_plane_db_host: "{{ ipo_platform.network.hosts[ipo_db_primary].mgmt }}"
+control_plane_database_url: >-
+  postgresql://ipo:{{ ipo_secrets.app_db_password | urlencode }}@{{ control_plane_db_host }}:5432/ipo
+# One replica runs the migrations, at start, before serving.
+control_plane_migrate: "{{ inventory_hostname == ipo_db_primary }}"
+control_plane_gateways: "{{ groups.get('gateways', ['gw-a', 'gw-b']) }}"
+control_plane_workers: 2
+control_plane_os_cloud: felcloud
+control_plane_clouds_yaml: "{{ ipo_secrets.clouds_yaml }}"
+control_plane_admin_email: "admin@{{ ipo_platform.domain }}"
+control_plane_admin_password: "{{ ipo_secrets.admin_password }}"
+control_plane_jwt_secret: "{{ ipo_secrets.jwt_secret }}"
+control_plane_signing_key: "{{ ipo_secrets.signing_private_key }}"
+# The gateway agents' logins (IPO_USERS_FILE, see templates/users.json.j2); gw_agent reads the
+# same passwords.
+control_plane_agent_passwords: "{{ ipo_secrets.agent_passwords }}"
+# Same origin as the dashboard (ipo-web proxies /grafana/ to the observability host).
+control_plane_grafana_url: /grafana
+control_plane_grafana_upstream: "{{ ipo_observability_ip }}:3000"
+# The front (security-groups.yaml opens it), the API behind it, and the front's health port.
+control_plane_web_port: 8000
+control_plane_api_port: 8001
+control_plane_health_port: 8002

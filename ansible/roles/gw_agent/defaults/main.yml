@@ -1,0 +1,13 @@
+---
+# Built by CI: `cd gateway-agent && CGO_ENABLED=0 go build -o dist/ipo-agent ./cmd/ipo-agent`.
+gw_agent_binary_src: "{{ ipo_repo_root }}/gateway-agent/dist/ipo-agent"
+gw_agent_user: ipo-agent
+gw_agent_env_file: /etc/ipo/agent.env
+gw_agent_listen: "{{ ipo_mgmt_ip }}:8443"
+gw_agent_metrics_addr: 127.0.0.1:9100
+# The agents report through the control plane's front on cp-1, over TLS from the platform CA.
+gw_agent_cp_url: "https://{{ ipo_platform.network.hosts[ipo_db_primary].mgmt }}:8000"
+gw_agent_cp_email: "agent-{{ inventory_hostname }}@{{ ipo_platform.domain }}"
+gw_agent_cp_password: "{{ ipo_secrets.agent_passwords[inventory_hostname] }}"
+gw_agent_signing_public_key: "{{ ipo_secrets.signing_public_key }}"
+gw_agent_admin_cns: ipo-control-plane

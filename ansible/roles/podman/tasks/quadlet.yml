@@ -1,0 +1,79 @@
+---
+# Installs Quadlet units from the repository's quadlets/ directory for the service user and
+# starts them. Callers set podman_units, podman_timers, podman_dropins, podman_start and
+# podman_restart (see defaults/main.yml).
+- name: Look up the service user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ podman_user }}"
+
+- name: Install Quadlet units
+  ansible.builtin.copy:
+    src: "{{ ipo_repo_root }}/quadlets/{{ item }}"
+    dest: "{{ podman_quadlet_dir }}/{{ item }}"
+    owner: "{{ podman_user }}"
+    group: "{{ podman_user }}"
+    mode: "0644"
+  loop: "{{ podman_units }}"
+  register: podman_installed_units
+
+- name: Create drop-in directories
+  ansible.builtin.file:
+    path: "{{ podman_quadlet_dir }}/{{ item.key }}.d"
+    state: directory
+    owner: "{{ podman_user }}"
+    group: "{{ podman_user }}"
+    mode: "0755"
+  loop: "{{ podman_dropins | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Install drop-ins
+  ansible.builtin.copy:
+    content: "{{ item.value }}"
+    dest: "{{ podman_quadlet_dir }}/{{ item.key }}.d/50-ipo.conf"
+    owner: "{{ podman_user }}"
+    group: "{{ podman_user }}"
+    mode: "0644"
+  loop: "{{ podman_dropins | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: podman_installed_dropins
+
+- name: Install timers
+  ansible.builtin.copy:
+    src: "{{ ipo_repo_root }}/quadlets/{{ item }}"
+    dest: "{{ podman_user_unit_dir }}/{{ item }}"
+    owner: "{{ podman_user }}"
+    group: "{{ podman_user }}"
+    mode: "0644"
+  loop: "{{ podman_timers }}"
+  register: podman_installed_timers
+
+- name: Start the services, restarting them when anything they read changed
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    scope: user
+    daemon_reload: true
+    state: "{{ 'restarted' if podman_changed else 'started' }}"
+  loop: "{{ podman_start }}"
+  vars:
+    podman_changed: >-
+      {{ podman_restart or podman_installed_units is changed or podman_installed_dropins is changed }}
+  become: true
+  become_user: "{{ podman_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][podman_user][1] }}"
+
+- name: Enable the timers
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop: "{{ podman_timers }}"
+  become: true
+  become_user: "{{ podman_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][podman_user][1] }}"

@@ -1,0 +1,87 @@
+// Managed by Ansible (role relay): telemetry from untrusted sandboxes, taken on the sandbox-net
+// address only and passed on to the observability host. host.alloy (role alloy) defines
+// prometheus.remote_write.platform and loki.write.platform.
+
+otelcol.receiver.otlp "sandboxes" {
+  grpc {
+    endpoint = "{{ relay_listen }}:4317"
+  }
+  http {
+    endpoint = "{{ relay_listen }}:4318"
+  }
+  output {
+    metrics = [otelcol.processor.batch.sandboxes.input]
+    logs    = [otelcol.processor.batch.sandboxes.input]
+    traces  = [otelcol.processor.batch.sandboxes.input]
+  }
+}
+
+otelcol.processor.batch "sandboxes" {
+  output {
+    metrics = [otelcol.exporter.prometheus.sandboxes.input]
+    logs    = [otelcol.exporter.loki.sandboxes.input]
+    traces  = [otelcol.exporter.otlp.traces.input]
+  }
+}
+
+otelcol.exporter.prometheus "sandboxes" {
+  forward_to = [prometheus.relabel.sandboxes.receiver]
+}
+
+prometheus.relabel "sandboxes" {
+  rule {
+    target_label = "source"
+    replacement  = "sandbox"
+  }
+  forward_to = [prometheus.remote_write.platform.receiver]
+}
+
+otelcol.exporter.loki "sandboxes" {
+  forward_to = [loki.process.sandboxes.receiver]
+}
+
+otelcol.exporter.otlp "traces" {
+  client {
+    endpoint = "{{ relay_traces_url }}"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// Syslog from sandboxes, labelled with the address it came from (which port security makes
+// trustworthy), so a log line can be traced to its lease.
+loki.source.syslog "sandboxes" {
+  listener {
+    address               = "{{ relay_listen }}:5140"
+    protocol              = "udp"
+    syslog_format         = "rfc3164"
+    use_incoming_timestamp = false
+    labels                = {source = "sandbox-syslog"}
+  }
+  relabel_rules = loki.relabel.syslog.rules
+  forward_to    = [loki.process.sandboxes.receiver]
+}
+
+loki.relabel "syslog" {
+  rule {
+    source_labels = ["__syslog_connection_ip_address"]
+    target_label  = "sandbox_ip"
+  }
+  rule {
+    source_labels = ["__syslog_message_hostname"]
+    target_label  = "sandbox_host"
+  }
+  forward_to = []
+}
+
+// A second, per-stream limit behind the per-address nftables limit.
+loki.process "sandboxes" {
+  stage.limit {
+    rate              = 50
+    burst             = 100
+    by_label_name     = "sandbox_ip"
+    drop              = true
+  }
+  forward_to = [loki.write.platform.receiver]
+}

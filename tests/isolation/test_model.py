@@ -89,6 +89,8 @@ def test_every_rule_in_the_spec_is_exercised_by_some_probe() -> None:
             if p.expect_open:
                 hit.add((NODES[p.dst].group, p.net, p.proto, p.port))
     for group, body in spec["groups"].items():
+        if group in spec.get("ephemeral", []):
+            continue  # no fixed machine to probe; bake_image.yml's builder
         for r in body["ingress"]:
             if r["proto"] == "vrrp":
                 continue  # not a port: the lab checks it with the keepalived pair

@@ -1,0 +1,28 @@
+[Unit]
+Description=Alertmanager
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=alertmanager
+Image=docker.io/prom/alertmanager:v0.34.1
+AutoUpdate=registry
+Network=host
+Volume=%h/.config/ipo/alertmanager:/etc/alertmanager:ro
+Volume=alertmanager.volume:/alertmanager
+Exec=--config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager --web.listen-address=127.0.0.1:9093 --cluster.listen-address=
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:9093/-/ready
+HealthInterval=15s
+HealthRetries=3
+HealthStartPeriod=30s
+HealthOnFailure=kill
+Notify=healthy
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

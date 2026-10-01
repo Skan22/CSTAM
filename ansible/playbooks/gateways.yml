@@ -1,0 +1,12 @@
+---
+- name: Gateways, one at a time so the other keeps the VIP
+  hosts: gateways
+  become: true
+  serial: 1
+  roles:
+    - podman
+    - step_ca
+    - gateway_network
+    - keepalived
+    - gw_agent
+    - traefik

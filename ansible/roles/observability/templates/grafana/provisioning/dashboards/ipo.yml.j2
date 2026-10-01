@@ -1,0 +1,10 @@
+# Managed by Ansible (role observability): observability/dashboards, read-only in Grafana.
+apiVersion: 1
+providers:
+  - name: ipo
+    folder: IPO
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/ipo-dashboards

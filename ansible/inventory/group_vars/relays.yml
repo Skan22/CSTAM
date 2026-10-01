@@ -1,0 +1,14 @@
+---
+# Sandboxes are untrusted: a noisy one must not drown the others' telemetry.
+ipo_sandbox_pool: "{{ ipo_platform.ip_pool.first }}-{{ ipo_platform.ip_pool.last }}"
+hardening_rate_limits:
+  - name: syslog
+    match: "ip saddr {{ ipo_sandbox_pool }} udp dport 5140"
+    rate: 100/second
+    burst: 200
+    why: "syslog datagrams from one sandbox"
+  - name: otlp
+    match: "ip saddr {{ ipo_sandbox_pool }} tcp dport { 4317, 4318 } ct state new"
+    rate: 20/second
+    burst: 40
+    why: "new OTLP connections from one sandbox"

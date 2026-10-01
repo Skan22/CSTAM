@@ -1,0 +1,8 @@
+---
+bastion_wg_address: 10.99.0.1
+bastion_wg_port: 51820
+# Operators' WireGuard peers: [{name: alice, public_key: "...", address: 10.99.0.10}]. Each keeps
+# their private key; bastion.yml prints the server's public key and endpoint for their config.
+bastion_peers: []
+bastion_mgmt_interface: >-
+  {{ ansible_facts | ipo_iface_for(ipo_platform.network.hosts[inventory_hostname].mgmt) }}

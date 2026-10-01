@@ -1,0 +1,20 @@
+# A custom-format dump of the database into ~/.local/share/ipo/backups, keeping the last three.
+# postgres-backup.timer starts postgres-backup-upload.service, which runs this first. The script
+# comes from roles/postgres/files/ipo-backup.sh (kept out of Exec= to avoid systemd's escaping).
+[Unit]
+Description=Dump the IPO database
+Requires=postgres.service
+After=postgres.service
+
+[Container]
+ContainerName=postgres-backup
+Image=docker.io/library/postgres:18.6
+Network=host
+Volume=%h/.local/share/ipo/backups:/backups
+Volume=%h/.config/ipo/postgres/ipo-backup.sh:/usr/local/bin/ipo-backup:ro
+Secret=ipo-postgres-password,type=env,target=PGPASSWORD
+Environment=PGHOST=127.0.0.1 PGUSER=postgres PGDATABASE=ipo
+Exec=sh /usr/local/bin/ipo-backup
+
+[Service]
+Type=oneshot

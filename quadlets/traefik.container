@@ -1,0 +1,35 @@
+# Gateways. ipo-agent (a system service) writes /var/lib/ipo-agent/live.yml; the traefik role
+# seeds an empty one so Traefik never starts without its file.
+[Unit]
+Description=Traefik, the gateway's proxy
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=traefik
+Image=docker.io/library/traefik:v3.7.13
+AutoUpdate=registry
+Network=host
+Exec=--configFile=/etc/traefik/traefik.yml
+Volume=/etc/traefik:/etc/traefik:ro
+# The directory, not the file: the agent replaces live.yml by rename, which a file mount hides.
+Volume=/var/lib/ipo-agent:/var/lib/ipo-agent:ro
+Volume=/var/log/traefik:/var/log/traefik
+Volume=/var/lib/traefik:/var/lib/traefik
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+HealthCmd=traefik healthcheck --configFile=/etc/traefik/traefik.yml
+HealthInterval=10s
+HealthTimeout=3s
+HealthRetries=3
+HealthStartPeriod=15s
+HealthOnFailure=kill
+Notify=healthy
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

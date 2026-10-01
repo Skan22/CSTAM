@@ -1,0 +1,9 @@
+---
+- name: Reload keepalived
+  ansible.builtin.systemd_service:
+    name: keepalived
+    state: reloaded
+
+- name: Apply the tmpfiles entry
+  ansible.builtin.command: systemd-tmpfiles --create /etc/tmpfiles.d/ipo.conf
+  changed_when: true

@@ -9,8 +9,20 @@ table inet ipo
 delete table inet ipo
 
 table inet ipo {
+{% for limit in hardening_rate_limits %}
+  set rate_{{ limit.name }} {
+    type ipv4_addr
+    flags dynamic, timeout
+    timeout 1m
+  }
+{% endfor %}
+
   chain input {
     type filter hook input priority 0; policy drop;
+{% for limit in hardening_rate_limits %}
+    # Per source, before conntrack: {{ limit.why }}
+    {{ limit.match }} update @rate_{{ limit.name }} { ip saddr limit rate over {{ limit.rate }} burst {{ limit.burst }} packets } drop
+{% endfor %}
     ct state established,related accept
     ct state invalid drop
     iifname "lo" accept
@@ -34,9 +46,15 @@ table inet ipo {
 
   chain forward {
     type filter hook forward priority 0; policy drop;
+{% for rule in hardening_extra_forward %}
+    {{ rule }}
+{% endfor %}
   }
 
   chain output {
     type filter hook output priority 0; policy accept;
   }
 }
+
+# Tables a role owns outright (the bastion's NAT, for one).
+include "/etc/nftables.d/*.nft"

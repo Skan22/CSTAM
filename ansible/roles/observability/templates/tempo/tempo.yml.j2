@@ -1,0 +1,29 @@
+# Managed by Ansible (role observability). Traces from the relay (sandboxes) and the control plane.
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9097
+  log_level: warn
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/blocks
+    wal:
+      path: /var/tempo/wal
+
+compactor:
+  compaction:
+    block_retention: {{ observability_trace_retention }}
+
+usage_report:
+  reporting_enabled: false

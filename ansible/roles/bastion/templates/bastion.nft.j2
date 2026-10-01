@@ -1,0 +1,12 @@
+# Managed by Ansible (role bastion). Peers reach mgmt-net as the bastion, so the cloud's
+# security groups (which trust sg-bastion) and port security (one address per port) both hold.
+# What peers may reach is the forward chain in inventory/group_vars/bastion.yml.
+table ip ipo_bastion
+delete table ip ipo_bastion
+
+table ip ipo_bastion {
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+    iifname "wg0" oifname "{{ bastion_mgmt_interface }}" ip saddr {{ bastion_wg_cidr | default('10.99.0.0/24') }} masquerade
+  }
+}

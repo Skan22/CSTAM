@@ -1,0 +1,33 @@
+# cp-1 and cp-2: one origin on :8000 for the dashboard, the API (/v1) and Grafana (/grafana/),
+# so the browser needs no CORS and Grafana's login cookie works inside the dashboard's frames.
+[Unit]
+Description=IPO web front (dashboard, API and Grafana on one origin)
+Wants=network-online.target ipo-control-plane.service
+After=network-online.target ipo-control-plane.service
+
+[Container]
+ContainerName=ipo-web
+Image=docker.io/library/caddy:2.11.4
+AutoUpdate=registry
+Network=host
+Volume=%h/.config/ipo/web/Caddyfile:/etc/caddy/Caddyfile:ro
+Volume=%h/.local/share/ipo/dashboard:/srv/dashboard:ro
+Volume=ipo-web.volume:/data
+# The host's certificate from the platform CA; keep-groups keeps the ipo-pki group that reads it.
+Volume=/etc/ipo/pki:/etc/ipo/pki:ro
+GroupAdd=keep-groups
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8002/healthz
+HealthInterval=10s
+HealthRetries=3
+HealthStartPeriod=20s
+HealthOnFailure=kill
+Notify=healthy
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

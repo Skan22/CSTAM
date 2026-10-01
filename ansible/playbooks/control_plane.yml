@@ -1,0 +1,18 @@
+---
+- name: Control plane
+  hosts: control_plane
+  become: true
+  # cp-1 first: it runs the CA and the Postgres primary the replica copies.
+  order: sorted
+  serial: 1
+  roles:
+    - podman
+    - step_ca
+    - postgres
+    - control_plane
+
+- name: Observability
+  hosts: "{{ ipo_observability_host | default('cp-2') }}"
+  become: true
+  roles:
+    - observability

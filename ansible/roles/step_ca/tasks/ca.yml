@@ -1,0 +1,33 @@
+---
+- name: Write the CA's first-start settings
+  ansible.builtin.template:
+    src: step-ca.env.j2
+    dest: "{{ podman_config_dir | default('/var/lib/' ~ ipo_service_user ~ '/.config/ipo') }}/step-ca.env"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0600"
+
+- name: Store the CA password
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: secret
+  vars:
+    podman_secret_name: ipo-ca-password
+    podman_secret_value: "{{ step_ca_password }}"
+
+- name: Run step-ca
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: quadlet
+  vars:
+    podman_units: [step-ca.container, step-ca.volume]
+    podman_start: [step-ca.service]
+
+- name: Wait for the CA to answer
+  ansible.builtin.uri:
+    url: https://127.0.0.1:9000/health
+    validate_certs: false
+  register: step_ca_health
+  until: step_ca_health.status == 200
+  retries: 30
+  delay: 2

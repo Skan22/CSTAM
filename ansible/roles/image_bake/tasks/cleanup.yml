@@ -1,0 +1,21 @@
+---
+# Last steps before the snapshot: nothing that identifies this builder may reach a sandbox.
+- name: Forget the machine identity
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/machine-id
+    owner: root
+    group: root
+    mode: "0444"
+
+- name: Remove the D-Bus machine id and the SSH host keys
+  ansible.builtin.shell:
+    cmd: rm -f /var/lib/dbus/machine-id /etc/ssh/ssh_host_*
+  changed_when: true
+
+- name: Reset cloud-init and the package caches
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - cloud-init clean --logs --seed
+    - apt-get clean
+  changed_when: true

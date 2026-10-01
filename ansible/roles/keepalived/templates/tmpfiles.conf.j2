@@ -1,0 +1,5 @@
+# Managed by Ansible (role keepalived). keepalived's notify hook writes vrrp_state and ipo-agent
+# writes fault (POST /fault); both are in {{ keepalived_state_group }}, and the setgid directory
+# keeps new files in that group.
+d /run/ipo 2770 root {{ keepalived_state_group }} -
+f /run/ipo/fault 0664 root {{ keepalived_state_group }} - 0

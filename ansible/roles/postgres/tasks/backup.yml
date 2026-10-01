@@ -1,0 +1,27 @@
+---
+- name: Point the upload at object storage
+  ansible.builtin.copy:
+    content: "IPO_BACKUP_REMOTE={{ postgres_backup_remote }}\n"
+    dest: "/var/lib/{{ ipo_service_user }}/.config/ipo/backup.env"
+    owner: "{{ ipo_service_user }}"
+    group: "{{ ipo_service_user }}"
+    mode: "0600"
+  when: postgres_backup_remote | length > 0
+
+- name: Store the rclone configuration
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: secret
+  vars:
+    podman_secret_name: ipo-rclone-config
+    podman_secret_value: "{{ postgres_rclone_config }}"
+  when: postgres_rclone_config | length > 0
+
+- name: Install the dump, upload and timer units
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: quadlet
+  vars:
+    podman_units: [postgres-backup.container, postgres-backup-upload.container]
+    podman_timers: "{{ ['postgres-backup.timer'] if postgres_backup_remote | length > 0 else [] }}"
+  when: postgres_backup_remote | length > 0

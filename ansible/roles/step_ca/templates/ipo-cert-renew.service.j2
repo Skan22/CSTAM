@@ -1,0 +1,19 @@
+# Managed by Ansible (role step_ca). Skipped (ExecCondition) until the certificate has less than
+# {{ step_ca_renew_within }} left, then renewed with the current one as proof.
+[Unit]
+Description=Renew this host's platform certificate
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecCondition=/usr/local/bin/step certificate needs-renewal {{ step_ca_pki_dir }}/host.crt --expires-in {{ step_ca_renew_within }}
+ExecStart=/usr/local/bin/step ca renew --force --ca-url {{ step_ca_url }} --root {{ step_ca_pki_dir }}/root_ca.crt {{ step_ca_pki_dir }}/host.crt {{ step_ca_pki_dir }}/host.key
+ExecStartPost=/usr/bin/chgrp {{ step_ca_pki_group }} {{ step_ca_pki_dir }}/host.key
+ExecStartPost=/usr/bin/chmod 0640 {{ step_ca_pki_dir }}/host.key
+{% for unit in step_ca_reload_system %}
+ExecStartPost=/usr/bin/systemctl try-restart {{ unit }}
+{% endfor %}
+{% if step_ca_reload_user %}
+ExecStartPost=/usr/bin/systemctl --user --machine={{ ipo_service_user }}@ try-restart {{ step_ca_reload_user | join(' ') }}
+{% endif %}

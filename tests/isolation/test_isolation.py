@@ -183,6 +183,28 @@ def test_only_the_gateways_can_send_vrrp_to_each_other(secured: IsolationLab) ->
     assert got == {"peer"}
 
 
+def test_one_sandbox_flooding_the_relay_does_not_drown_the_others(secured: IsolationLab) -> None:
+    """The relay's per-source limit (inventory/group_vars/relay.yml: 100/s, burst 200) cuts a
+    two-second flood of 1000 datagrams a second to about 200 + 2 x 100, while another sandbox
+    still gets every datagram through. Without the host layer the whole flood arrives, so the
+    limit is what cut it."""
+    lab = secured
+    relay = lab.nodes["relay"].addrs["sandbox"]
+    tag = uuid.uuid4().hex[:10]
+    lab.flood("sbx-a", relay, 5140, 2000, 1000, f"{tag}:a")
+    lab.flood("sbx-b", relay, 5140, 20, 1000, f"{tag}:b")
+    got = lab.delivered(tag)
+    from_a = sum(r.src == lab.nodes["sbx-a"].addrs["sandbox"] for r in got)
+    from_b = sum(r.src == lab.nodes["sbx-b"].addrs["sandbox"] for r in got)
+    assert 250 <= from_a <= 650, from_a
+    assert from_b == 20
+
+    lab.set_layers(host=False, fabric=True)
+    tag = uuid.uuid4().hex[:10]
+    lab.flood("sbx-a", relay, 5140, 2000, 1000, f"{tag}:a")
+    assert len(lab.delivered(tag)) > 1800
+
+
 def test_without_the_edge_routing_unit_sandboxes_lose_the_gateways_web_ports(
         secured: IsolationLab) -> None:
     """Why the `gateway_network` role exists: without its rule the answer to a sandbox leaves by

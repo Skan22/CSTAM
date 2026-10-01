@@ -1,0 +1,36 @@
+---
+# The Postgres primary (cp-1) is lost: promote cp-2 and point both control planes at it.
+#   ansible-playbook playbooks/promote_replica.yml -e @secrets.yaml -e old_primary=cp-1 -e new_primary=cp-2
+# Afterwards set ipo_db_primary to the new primary in inventory/group_vars/all.yml, and rebuild the
+# old one as a replica (docs/runbooks/promote-replica.md).
+- name: Fence the old primary if it still answers
+  hosts: "{{ old_primary | default('cp-1') }}"
+  become: true
+  gather_facts: false
+  ignore_unreachable: true
+  tasks:
+    - name: Stop Postgres there, so two primaries never take writes
+      ansible.builtin.command:
+        argv: [systemctl, --user, "--machine={{ ipo_service_user }}@", stop, postgres.service]
+      changed_when: true
+      failed_when: false
+
+- name: Promote the replica
+  hosts: "{{ new_primary | default('cp-2') }}"
+  become: true
+  tasks:
+    - name: Promote
+      ansible.builtin.command:
+        argv: [podman, exec, postgres, psql, -U, postgres, -tAc, "SELECT pg_promote(wait => true)"]
+      become: true
+      become_user: "{{ ipo_service_user }}"
+      register: promote_result
+      changed_when: promote_result.stdout | trim == 't'
+
+- name: Point the control planes at the new primary
+  hosts: control_plane
+  become: true
+  vars:
+    ipo_db_primary: "{{ new_primary | default('cp-2') }}"
+  roles:
+    - control_plane

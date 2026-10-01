@@ -18,7 +18,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 NETS = ("edge", "sandbox", "mgmt")
-TCP_PORTS = (22, 80, 443, 3000, 3100, 4317, 4318, 5432, 8000, 8080, 8443, 9090, 9100)
+TCP_PORTS = (22, 80, 443, 3000, 3100, 4317, 4318, 5432, 8000, 8001, 8080, 8443, 9000, 9090, 9100)
 UDP_PORTS = (5140, 51820)
 EXTERNAL = "203.0.113"  # documentation range: the lab's "internet"
 FLOATING_IP = f"{EXTERNAL}.10"  # maps to the VIP

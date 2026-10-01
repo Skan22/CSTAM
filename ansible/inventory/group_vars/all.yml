@@ -1,0 +1,26 @@
+---
+# platform.yaml and security-groups.yaml are the single sources of truth for every layer.
+# Secrets are not here: pass the SOPS-decrypted file with `-e @secrets.yaml` (see README.md).
+ipo_repo_root: "{{ inventory_dir }}/../.."
+ipo_stack: dev
+ipo_platform: "{{ lookup('ansible.builtin.file', ipo_repo_root ~ '/platform.yaml') | from_yaml }}"
+ipo_security_groups: >-
+  {{ lookup('ansible.builtin.file', ipo_repo_root ~ '/security-groups.yaml') | from_yaml }}
+# Written by `pulumi stack output --json` (see infra/pulumi/README.md).
+ipo_outputs: >-
+  {{ lookup('ansible.builtin.file', ipo_repo_root ~ '/infra/pulumi/outputs/' ~ ipo_stack ~ '.json')
+     | from_json }}
+
+ipo_service_user: ipo
+ipo_registry: registry.felcloud.tn/ipo
+# Image tag of everything we build; `podman auto-update` follows it.
+ipo_release: "{{ ipo_stack }}"
+ipo_mgmt_ip: "{{ ipo_platform.network.hosts[inventory_hostname].mgmt }}"
+ipo_cp_hosts: "{{ groups['control_plane'] | default(['cp-1', 'cp-2']) }}"
+ipo_ca_host: cp-1
+ipo_ca_url: "https://{{ ipo_platform.network.hosts[ipo_ca_host].mgmt }}:9000"
+ipo_observability_host: cp-2
+ipo_observability_ip: "{{ ipo_platform.network.hosts[ipo_observability_host].mgmt }}"
+# The Postgres primary; promote_replica.yml switches it.
+ipo_db_primary: cp-1
+ipo_pki_dir: /etc/ipo/pki

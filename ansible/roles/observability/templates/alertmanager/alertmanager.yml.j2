@@ -1,0 +1,17 @@
+# Managed by Ansible (role observability).
+route:
+  receiver: {{ 'webhook' if observability_alert_webhook else 'keep' }}
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  # Alerts stay visible in Alertmanager and Grafana even with no webhook configured.
+  - name: keep
+{% if observability_alert_webhook %}
+  - name: webhook
+    webhook_configs:
+      - url: {{ observability_alert_webhook | to_json }}
+        send_resolved: true
+{% endif %}

@@ -1,0 +1,1 @@
+[{% for gw, password in control_plane_agent_passwords.items() %}{"email": {{ ('agent-' ~ gw ~ '@' ~ ipo_platform.domain) | to_json }}, "password": {{ password | to_json }}, "role": "operator"}{{ '' if loop.last else ', ' }}{% endfor %}]

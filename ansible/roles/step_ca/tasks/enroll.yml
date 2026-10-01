@@ -1,0 +1,32 @@
+---
+- name: Mint a one-time token for this host on the CA
+  ansible.builtin.command:
+    argv: "{{ ['podman', 'exec', 'step-ca', 'step', 'ca', 'token', step_ca_common_name,
+               '--provisioner', step_ca_provisioner,
+               '--password-file', '/home/step/secrets/password',
+               '--ca-url', 'https://127.0.0.1:9000', '--root', '/home/step/certs/root_ca.crt']
+              + (step_ca_sans | map('regex_replace', '^', '--san=') | list) }}"
+  delegate_to: "{{ step_ca_host }}"
+  become: true
+  become_user: "{{ ipo_service_user }}"
+  register: step_ca_token
+  changed_when: false
+  no_log: true
+
+- name: Get a certificate with it
+  ansible.builtin.command:
+    argv: [step, ca, certificate, "{{ step_ca_common_name }}", "{{ step_ca_pki_dir }}/host.crt",
+           "{{ step_ca_pki_dir }}/host.key", --token, "{{ step_ca_token.stdout | trim }}",
+           --ca-url, "{{ step_ca_url }}", --root, "{{ step_ca_pki_dir }}/root_ca.crt"]
+    creates: "{{ step_ca_pki_dir }}/host.crt"
+  no_log: true
+
+- name: Let the key's readers read it
+  ansible.builtin.file:
+    path: "{{ step_ca_pki_dir }}/{{ item.name }}"
+    owner: root
+    group: "{{ step_ca_pki_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {name: host.crt, mode: "0644"}
+    - {name: host.key, mode: "0640"}
