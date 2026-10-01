@@ -22,7 +22,7 @@ Other playbooks: `bake_image.yml` (sandbox image), `promote_replica.yml`, `rotat
 | `podman` | gateways, control plane | Podman ≥ 5, lingering `ipo` user, auto-update timer; `tasks/quadlet.yml` and `tasks/secret.yml` for the service roles |
 | `gateway_network` | gateways | answers from edge addresses leave by the edge port (port security drops them otherwise) |
 | `keepalived` | gateways | VRRP pair from `platform.yaml`, health check, notify hook, `/run/ipo` shared with the agent |
-| `gw_agent` | gateways | agent binary and a systemd unit systemd rates 1.x "OK" (no capabilities, read-only system) |
+| `gw_agent` | gateways | agent binary and a systemd unit `systemd-analyze security` rates 1.2 "OK" (no capabilities, read-only system) |
 | `traefik` | gateways | static config and the Traefik Quadlet |
 | `step_ca` | cp-1 (CA), gateways and control plane (certificates) | step-ca Quadlet, enrollment with one-time tokens, a renewal timer gated on `needs-renewal` |
 | `postgres` | cp-1 primary, cp-2 replica | Quadlet, pg_basebackup seeding, roles and database, nightly dumps to object storage |

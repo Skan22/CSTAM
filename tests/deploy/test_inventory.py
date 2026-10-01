@@ -79,3 +79,11 @@ def test_security_groups_the_deploy_names_are_ones_pulumi_creates() -> None:
     created = set(rules.neutron_groups(spec, plat))
     named = set(re.findall(r"\bsg-[a-z]+\.[a-z]+\b", text_of(ANSIBLE / "roles", ANSIBLE / "playbooks")))
     assert named and named <= created, named - created
+
+
+def test_the_traefik_seed_is_the_agents_empty_config() -> None:
+    go = (render.REPO / "gateway-agent/internal/pipeline/pipeline.go").read_text()
+    empty = re.search(r"const EmptyConfig = `(.+)`", go).group(1)  # type: ignore[union-attr]
+    tasks = yaml.safe_load((ANSIBLE / "roles/traefik/tasks/main.yml").read_text())
+    seed = next(t for t in tasks if t["name"].startswith("Seed"))["ansible.builtin.copy"]["content"]
+    assert seed == empty

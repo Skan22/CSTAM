@@ -10,7 +10,7 @@ echo "== infra/pulumi: lint, types, rules, policy pack, program under mocks"
 (cd infra/pulumi && uv sync --locked && uv run ruff check . && uv run mypy && uv run pytest -q)
 
 echo "== system tests: lint, types, spec cross-checks"
-(cd tests && uv sync --locked && uv run ruff check . && uv run mypy && uv run pytest -q)
+(cd tests && uv sync --locked && uv run ruff check . && uv run mypy && uv run pytest -q --ignore=deploy)
 
 echo "== deploy: ansible-lint, playbook syntax, every rendered config read by its real program"
 (cd tests && uv sync --locked --group deploy && sh lab/fetch-tools.sh validators >/dev/null \

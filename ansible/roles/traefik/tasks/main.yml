@@ -22,9 +22,11 @@
     mode: "0644"
   register: traefik_static
 
+# ipo-agent writes this file when it starts (gw_agent runs first), so the seed matters only if
+# it never has; it is the agent's own empty config, which Traefik's file provider accepts.
 - name: Seed an empty route file until ipo-agent writes a verified version
   ansible.builtin.copy:
-    content: "# Replaced by ipo-agent with each verified config version.\n{}\n"
+    content: '{"http":{"routers":{},"services":{}}}'
     dest: "{{ traefik_live_config }}"
     owner: ipo-agent
     group: ipo-agent
