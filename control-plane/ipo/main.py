@@ -14,6 +14,7 @@ Configuration comes from the environment:
                        (with IPO_CLOUD=fake and no IPO_AGENTS, in-process agent doubles are used)
     IPO_AGENT_CERT / IPO_AGENT_KEY / IPO_AGENT_CA   mTLS material for the agents
     IPO_VIP            the gateway VIP, for the registration probe
+    IPO_GRAFANA_URL    base URL of a Grafana the dashboard may embed (optional)
     IPO_WORKERS        saga worker threads (default 2)
     IPO_BIND           host:port for the API (default 0.0.0.0:8000)
     IPO_MIGRATE        `1` to run migrations at start
@@ -38,7 +39,7 @@ from ipo.adapters.local_agent import LocalAgent
 from ipo.adapters.openstack.base import Cloud
 from ipo.adapters.openstack.fake import FakeCloud
 from ipo.adapters.prober import HttpProber, NullProber
-from ipo.api.app import AppDeps, create_app
+from ipo.api.app import AppDeps, create_app, grafana_url
 from ipo.api.users import create_user
 from ipo.config import load_platform, pool_addresses
 from ipo.controllers.compiler import (
@@ -140,6 +141,7 @@ def build_runtime(
     pusher = Pusher(agents, connect)
     deps = Deps(cloud, DbGateways(base), prober, base)
     app = create_app(AppDeps(connect, base, jwt_secret=env["IPO_JWT_SECRET"],
+                             grafana_url=grafana_url(env.get("IPO_GRAFANA_URL", "")),
                              failover=failover if agents else None))
     rt = Runtime(app, base, connect, agents)
 

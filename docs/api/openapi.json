@@ -1444,6 +1444,20 @@
         "title": "TrafficTotals",
         "type": "object"
       },
+      "UiConfig": {
+        "properties": {
+          "grafana_url": {
+            "description": "Base URL of the Grafana to embed; empty when none",
+            "title": "Grafana Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grafana_url"
+        ],
+        "title": "UiConfig",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -3067,6 +3081,38 @@
         "summary": "Get Recent Traffic",
         "tags": [
           "traffic"
+        ]
+      }
+    },
+    "/v1/ui": {
+      "get": {
+        "operationId": "ui_config_v1_ui_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid token"
+          },
+          "403": {
+            "description": "Role too low"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ui Config",
+        "tags": [
+          "pool"
         ]
       }
     }

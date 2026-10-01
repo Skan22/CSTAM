@@ -184,6 +184,48 @@
     },
     {
       "id": 9,
+      "title": "Split brains seen (1h)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "increase(ipo_split_brain_total[1h])",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 10,
+      "title": "Gateways reporting MASTER, control plane view",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "ipo_gateway_masters",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 11,
       "title": "Reload duration p95",
       "type": "timeseries",
       "targets": [
@@ -198,10 +240,13 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 40,
         "w": 12,
         "h": 8
       }
     }
-  ]
+  ],
+  "templating": {
+    "list": []
+  }
 }

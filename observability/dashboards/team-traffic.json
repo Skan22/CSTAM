@@ -1,6 +1,6 @@
 {
-  "uid": "overview",
-  "title": "IPO Overview",
+  "uid": "team-traffic",
+  "title": "IPO Team Traffic",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "5s",
@@ -14,13 +14,13 @@
   "panels": [
     {
       "id": 1,
-      "title": "Teams by state",
+      "title": "Requests by team, last 5 min",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "ipo_teams",
+          "expr": "sum by (team) (ipo_team_requests_5m{team=~\"$team\"})",
           "refId": "A",
-          "legendFormat": "{{state}}"
+          "legendFormat": "{{team}}"
         }
       ],
       "datasource": {
@@ -36,12 +36,13 @@
     },
     {
       "id": 2,
-      "title": "Warm pool size",
-      "type": "stat",
+      "title": "Responses by class",
+      "type": "timeseries",
       "targets": [
         {
-          "expr": "ipo_pool_size",
-          "refId": "A"
+          "expr": "sum by (class) (ipo_team_requests_5m{team=~\"$team\"})",
+          "refId": "A",
+          "legendFormat": "{{class}}"
         }
       ],
       "datasource": {
@@ -57,11 +58,11 @@
     },
     {
       "id": 3,
-      "title": "Pool target",
+      "title": "5xx responses",
       "type": "stat",
       "targets": [
         {
-          "expr": "ipo_pool_target",
+          "expr": "sum(ipo_team_requests_5m{team=~\"$team\", class=\"5xx\"})",
           "refId": "A"
         }
       ],
@@ -78,13 +79,12 @@
     },
     {
       "id": 4,
-      "title": "Config version per gateway",
+      "title": "Mean latency (ms)",
       "type": "stat",
       "targets": [
         {
-          "expr": "ipo_config_live_version",
-          "refId": "A",
-          "legendFormat": "{{gateway}}"
+          "expr": "avg(ipo_team_latency_ms_5m{team=~\"$team\"})",
+          "refId": "A"
         }
       ],
       "datasource": {
@@ -100,12 +100,13 @@
     },
     {
       "id": 5,
-      "title": "Free addresses",
-      "type": "stat",
+      "title": "Latency by team (ms)",
+      "type": "timeseries",
       "targets": [
         {
-          "expr": "ipo_ip_addresses{state=\"free\"}",
-          "refId": "A"
+          "expr": "ipo_team_latency_ms_5m{team=~\"$team\"}",
+          "refId": "A",
+          "legendFormat": "{{team}}"
         }
       ],
       "datasource": {
@@ -118,30 +119,30 @@
         "w": 12,
         "h": 8
       }
-    },
-    {
-      "id": 6,
-      "title": "Active alerts",
-      "type": "stat",
-      "targets": [
-        {
-          "expr": "count(ALERTS{alertstate=\"firing\", alertname=~\"IPO.*\"}) or vector(0)",
-          "refId": "A"
-        }
-      ],
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 16,
-        "w": 12,
-        "h": 8
-      }
     }
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "team",
+        "label": "Team",
+        "type": "query",
+        "multi": true,
+        "includeAll": true,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(ipo_team_requests_5m, team)",
+          "refId": "team"
+        },
+        "refresh": 2,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
   }
 }

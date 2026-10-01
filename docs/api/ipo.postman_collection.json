@@ -455,6 +455,23 @@
       "name": "pool",
       "item": [
         {
+          "name": "Ui Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/ui",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "ui"
+              ]
+            }
+          }
+        },
+        {
           "name": "Pool",
           "request": {
             "method": "GET",

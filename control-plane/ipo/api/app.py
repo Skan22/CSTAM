@@ -9,6 +9,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import psycopg
@@ -49,6 +50,21 @@ class AppDeps:
     token_ttl_seconds: int = 900
     # Called with the name of the gateway to fault; None where no agent client is wired.
     failover: Callable[[str], None] | None = None
+    # Where the Grafana that embeds into the dashboard lives; empty hides the Metrics page.
+    grafana_url: str = ""
+
+
+def grafana_url(raw: str) -> str:
+    """A plain http(s) base URL without credentials, query or fragment, or an error. The SPA puts
+    this in an iframe src, so anything else (javascript:, userinfo, a query) is refused."""
+    raw = raw.strip()
+    if not raw:
+        return ""
+    parts = urlsplit(raw)
+    if (parts.scheme not in ("http", "https") or not parts.hostname or parts.username
+            or parts.password or parts.query or parts.fragment or "?" in raw or "#" in raw):
+        raise ValueError(f"IPO_GRAFANA_URL must be a plain http(s) URL, got {raw!r}")
+    return raw.rstrip("/")
 
 
 class _Middleware:
@@ -382,6 +398,10 @@ def create_app(deps: AppDeps) -> FastAPI:
                           last_error=row[5], trace_id=row[6], created_at=row[7], steps=steps)
 
     # ------------------------------------------------------- pool, ipam
+    @app.get("/v1/ui", tags=["pool"], response_model=models.UiConfig)
+    def ui_config(_: Principal = viewer) -> models.UiConfig:
+        return models.UiConfig(grafana_url=grafana_url(deps.grafana_url))
+
     @app.get("/v1/pool", tags=["pool"], response_model=models.Pool)
     def pool(_: Principal = viewer, conn: psycopg.Connection = Db) -> models.Pool:
         c = leases.counts(conn)

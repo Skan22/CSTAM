@@ -7,6 +7,7 @@ import { Audit } from "./pages/Audit";
 import { Gateways } from "./pages/Gateways";
 import { Ipam } from "./pages/Ipam";
 import { Login } from "./pages/Login";
+import { Metrics } from "./pages/Metrics";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
 import { TeamHome } from "./pages/TeamHome";
@@ -14,7 +15,7 @@ import { Teams } from "./pages/Teams";
 import { Traffic } from "./pages/Traffic";
 
 const PAGES: Record<string, () => React.JSX.Element> = {
-  overview: Overview, teams: Teams, gateways: Gateways, traffic: Traffic, ipam: Ipam, audit: Audit, settings: Settings,
+  overview: Overview, teams: Teams, gateways: Gateways, traffic: Traffic, metrics: Metrics, ipam: Ipam, audit: Audit, settings: Settings,
 };
 
 function useRoute(): string {

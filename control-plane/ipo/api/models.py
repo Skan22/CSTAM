@@ -54,6 +54,10 @@ class Me(BaseModel):
     team: TeamView | None = Field(description="Set for team accounts only")
 
 
+class UiConfig(BaseModel):
+    grafana_url: str = Field(description="Base URL of the Grafana to embed; empty when none")
+
+
 class Registered(BaseModel):
     job_id: UUID
     team_id: UUID

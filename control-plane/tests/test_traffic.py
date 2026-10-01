@@ -134,3 +134,31 @@ def test_the_traffic_tables_skip_the_write_ahead_log(api: Api) -> None:
         rows = c.execute("SELECT relname, relpersistence FROM pg_class"
                          " WHERE relname IN ('traffic_buckets', 'traffic_recent')").fetchall()
     assert sorted(rows) == [("traffic_buckets", "u"), ("traffic_recent", "u")]
+
+
+def team_series(api: Api) -> dict[str, float]:
+    out = {}
+    for line in api.client.get("/metrics").text.splitlines():
+        if line.startswith(("ipo_team_requests_5m{", "ipo_team_latency_ms_5m{")):
+            out[line.rsplit(" ", 1)[0]] = float(line.rsplit(" ", 1)[1])
+    return out
+
+
+def test_team_traffic_is_exported_for_prometheus(api: Api) -> None:
+    alpha = team_host(api, "alpha")
+    report(api, hosts=[host_row(alpha, 10, s4xx=2, s5xx=1, ms=100), host_row("scan.example", 99)])
+    got = team_series(api)
+    assert got['ipo_team_requests_5m{class="2xx",team="alpha"}'] == 7
+    assert got['ipo_team_requests_5m{class="4xx",team="alpha"}'] == 2
+    assert got['ipo_team_requests_5m{class="5xx",team="alpha"}'] == 1
+    assert got['ipo_team_latency_ms_5m{team="alpha"}'] == 10
+    assert not any("scan" in k for k in got)
+
+
+def test_a_team_that_is_gone_stops_being_exported(api: Api) -> None:
+    alpha = team_host(api, "alpha")
+    report(api, hosts=[host_row(alpha, 1)])
+    assert team_series(api)
+    with api.connect() as c:
+        c.execute("DELETE FROM routes WHERE host = %s", (alpha,))
+    assert team_series(api) == {}

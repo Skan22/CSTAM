@@ -1,0 +1,60 @@
+{
+  "panels": [
+    {
+      "uid": "overview",
+      "dashboard": "IPO Overview",
+      "id": 2,
+      "title": "Warm pool size",
+      "team_var": false
+    },
+    {
+      "uid": "overview",
+      "dashboard": "IPO Overview",
+      "id": 4,
+      "title": "Config version per gateway",
+      "team_var": false
+    },
+    {
+      "uid": "gateways",
+      "dashboard": "IPO Gateways",
+      "id": 7,
+      "title": "Gateways reporting MASTER (should be 1)",
+      "team_var": false
+    },
+    {
+      "uid": "gateways",
+      "dashboard": "IPO Gateways",
+      "id": 9,
+      "title": "Split brains seen (1h)",
+      "team_var": false
+    },
+    {
+      "uid": "gateways",
+      "dashboard": "IPO Gateways",
+      "id": 10,
+      "title": "Gateways reporting MASTER, control plane view",
+      "team_var": false
+    },
+    {
+      "uid": "team-traffic",
+      "dashboard": "IPO Team Traffic",
+      "id": 1,
+      "title": "Requests by team, last 5 min",
+      "team_var": true
+    },
+    {
+      "uid": "team-traffic",
+      "dashboard": "IPO Team Traffic",
+      "id": 2,
+      "title": "Responses by class",
+      "team_var": true
+    },
+    {
+      "uid": "team-traffic",
+      "dashboard": "IPO Team Traffic",
+      "id": 5,
+      "title": "Latency by team (ms)",
+      "team_var": true
+    }
+  ]
+}
