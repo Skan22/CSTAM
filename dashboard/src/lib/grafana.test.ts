@@ -20,10 +20,19 @@ test("only the team dashboard gets a team variable, and it is encoded", () => {
   expect(new URL(panelUrl(base, other, { theme: "light", team: "alpha" })!).searchParams.has("var-team")).toBe(false);
 });
 
+test("a path means Grafana is served from the dashboard's own origin", () => {
+  const p = PANELS.find((x) => x.uid === "overview")!;
+  const u = new URL(panelUrl("/grafana", p, { theme: "dark" })!);
+  expect(u.origin).toBe(globalThis.location.origin);
+  expect(u.pathname).toBe("/grafana/d-solo/overview/ipo-overview");
+});
+
 test("no URL without a configured Grafana, or with one that is not http(s)", () => {
   const p = PANELS[0]!;
   expect(panelUrl("", p, { theme: "light" })).toBeUndefined();
   expect(panelUrl("javascript:alert(1)", p, { theme: "light" })).toBeUndefined();
+  expect(panelUrl("//evil.example/x", p, { theme: "light" })).toBeUndefined();
+  expect(panelUrl("/\\evil.example", p, { theme: "light" })).toBeUndefined();
 });
 
 test("the generated panel list is non-empty and has unique panels", () => {

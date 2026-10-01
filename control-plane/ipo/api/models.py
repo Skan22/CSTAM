@@ -55,7 +55,8 @@ class Me(BaseModel):
 
 
 class UiConfig(BaseModel):
-    grafana_url: str = Field(description="Base URL of the Grafana to embed; empty when none")
+    grafana_url: str = Field(description="Grafana to embed: an http(s) URL, or a path on this "
+                             "origin such as /grafana; empty when none")
 
 
 class Registered(BaseModel):

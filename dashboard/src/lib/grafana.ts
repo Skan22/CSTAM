@@ -13,11 +13,13 @@ export const PANELS: PanelDef[] = generated.panels;
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-/** The d-solo URL for one panel, or undefined when Grafana is off or the base is not http(s). */
+/** The d-solo URL for one panel, or undefined when Grafana is off or the base is not http(s).
+ *  A base that is a path (`/grafana`) is on the dashboard's own origin. */
 export function panelUrl(base: string, p: PanelDef, opt: { theme: "light" | "dark"; team?: string }): string | undefined {
   let root: URL;
   try {
-    root = new URL(base);
+    const samePath = base.startsWith("/") && !base.startsWith("//") && !base.includes("\\");
+    root = samePath ? new URL(base, globalThis.location.origin) : new URL(base);
   } catch {
     return undefined;
   }

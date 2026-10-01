@@ -1100,7 +1100,7 @@ export interface components {
         UiConfig: {
             /**
              * Grafana Url
-             * @description Base URL of the Grafana to embed; empty when none
+             * @description Grafana to embed: an http(s) URL, or a path on this origin such as /grafana; empty when none
              */
             grafana_url: string;
         };

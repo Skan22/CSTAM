@@ -108,3 +108,27 @@ def test_the_pool_is_seeded_from_platform_yaml(dsn: str) -> None:
                    "IPO_JWT_SECRET": "j" * 40})
     with psycopg.connect(dsn) as c:
         assert c.execute("SELECT count(*) FROM leases").fetchone() == (100,)
+
+
+def test_accounts_in_the_users_file_are_created_at_start(dsn: str, tmp_path: Path) -> None:
+    """How a deployment gives the gateway agents their logins: a JSON list in a mounted secret."""
+    users = tmp_path / "users.json"
+    users.write_text('[{"email": "agent-gw-a@example.com", "password": "pw-0123456789abcdef",'
+                     ' "role": "operator"}]')
+    env = {"IPO_DATABASE_URL": dsn, "IPO_PLATFORM": str(PLATFORM), "IPO_CLOUD": "fake",
+           "IPO_JWT_SECRET": "j" * 40, "IPO_USERS_FILE": str(users)}
+    rt = build_runtime(env, cloud=FakeCloud(), signer=Signer.generate(), agents={})
+    r = TestClient(rt.app).post("/v1/auth/login", json={"email": "agent-gw-a@example.com",
+                                                        "password": "pw-0123456789abcdef"})
+    assert r.status_code == 200 and r.json()["role"] == "operator"
+
+
+@pytest.mark.parametrize("content", ['{"email": "a@b.c"}', '[{"email": "a@b.c", "role": "admin"}]',
+                                     '[{"email": "a@b.c", "password": "x", "role": "root"}]'])
+def test_a_malformed_users_file_stops_the_start(dsn: str, tmp_path: Path, content: str) -> None:
+    users = tmp_path / "users.json"
+    users.write_text(content)
+    env = {"IPO_DATABASE_URL": dsn, "IPO_PLATFORM": str(PLATFORM), "IPO_CLOUD": "fake",
+           "IPO_JWT_SECRET": "j" * 40, "IPO_USERS_FILE": str(users)}
+    with pytest.raises(ValueError):
+        build_runtime(env, cloud=FakeCloud(), signer=Signer.generate(), agents={})

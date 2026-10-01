@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import threading
 import time
 import uuid
@@ -55,11 +56,16 @@ class AppDeps:
 
 
 def grafana_url(raw: str) -> str:
-    """A plain http(s) base URL without credentials, query or fragment, or an error. The SPA puts
+    """A plain http(s) base URL without credentials, query or fragment, or a path on the
+    dashboard's own origin (`/grafana` when one front serves both), or an error. The SPA puts
     this in an iframe src, so anything else (javascript:, userinfo, a query) is refused."""
     raw = raw.strip()
     if not raw:
         return ""
+    if raw.startswith("/"):
+        if not re.fullmatch(r"(/[A-Za-z0-9._~-]+)+/?", raw):
+            raise ValueError(f"IPO_GRAFANA_URL must be a plain path like /grafana, got {raw!r}")
+        return raw.rstrip("/")
     parts = urlsplit(raw)
     if (parts.scheme not in ("http", "https") or not parts.hostname or parts.username
             or parts.password or parts.query or parts.fragment or "?" in raw or "#" in raw):

@@ -14,13 +14,17 @@ Configuration comes from the environment:
                        (with IPO_CLOUD=fake and no IPO_AGENTS, in-process agent doubles are used)
     IPO_AGENT_CERT / IPO_AGENT_KEY / IPO_AGENT_CA   mTLS material for the agents
     IPO_VIP            the gateway VIP, for the registration probe
-    IPO_GRAFANA_URL    base URL of a Grafana the dashboard may embed (optional)
+    IPO_GRAFANA_URL    Grafana the dashboard may embed: an http(s) URL, or a path such as /grafana
+                       when the same front serves both (optional)
     IPO_WORKERS        saga worker threads (default 2)
     IPO_BIND           host:port for the API (default 0.0.0.0:8000)
     IPO_MIGRATE        `1` to run migrations at start
     IPO_ADMIN_EMAIL / IPO_ADMIN_PASSWORD   creates or resets this admin at start
+    IPO_USERS_FILE     JSON list of {email, password, role} created or reset at start (the
+                       gateway agents' logins)
 """
 
+import json
 import logging
 import os
 import socket
@@ -81,6 +85,19 @@ class Runtime:
             t.join(timeout)
 
 
+def _users_file(path: str | None) -> list[dict[str, str]]:
+    """Staff accounts to create or reset at start, such as the gateway agents' logins: a JSON list
+    of {"email", "password", "role"}, usually a mounted secret. Malformed, it stops the start."""
+    if not path:
+        return []
+    accounts = json.loads(Path(path).read_text())
+    if not isinstance(accounts, list) or not all(
+            isinstance(a, dict) and set(a) == {"email", "password", "role"}
+            and all(isinstance(v, str) for v in a.values()) for a in accounts):
+        raise ValueError("IPO_USERS_FILE must be a JSON list of {email, password, role}")
+    return accounts
+
+
 def _agents(env: Mapping[str, str]) -> dict[str, Agent]:
     cert = (env["IPO_AGENT_CERT"], env["IPO_AGENT_KEY"]) if env.get("IPO_AGENT_CERT") else None
     out: dict[str, Agent] = {}
@@ -109,6 +126,8 @@ def build_runtime(
         leases.seed(conn, pool_addresses(cfg))
         if env.get("IPO_ADMIN_EMAIL") and env.get("IPO_ADMIN_PASSWORD"):
             create_user(conn, env["IPO_ADMIN_EMAIL"], env["IPO_ADMIN_PASSWORD"], "admin")
+        for account in _users_file(env.get("IPO_USERS_FILE")):
+            create_user(conn, account["email"], account["password"], account["role"])
 
     if signer is None:
         if env.get("IPO_SIGNING_KEY"):

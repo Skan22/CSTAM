@@ -39,6 +39,7 @@ def test_the_ui_config_needs_a_login(api: Api) -> None:
     ("", ""), ("  ", ""), ("https://g.example", "https://g.example"),
     ("http://10.0.0.5:3000/", "http://10.0.0.5:3000"),
     ("https://g.example/grafana/", "https://g.example/grafana"),
+    ("/grafana/", "/grafana"), ("/grafana", "/grafana"),
 ])
 def test_grafana_url_is_trimmed_and_normalised(raw: str, clean: str) -> None:
     assert grafana_url(raw) == clean
@@ -47,6 +48,7 @@ def test_grafana_url_is_trimmed_and_normalised(raw: str, clean: str) -> None:
 @pytest.mark.parametrize("raw", [
     "javascript:alert(1)", "ftp://g.example", "//g.example", "g.example",
     "https://g.example/?x=1", "https://g.example/#x", "https://user:pw@g.example",
+    "/", "/\\evil.example", "/grafana?x=1", "/grafana#x", "/ grafana",
 ])
 def test_anything_but_a_plain_http_url_is_refused(raw: str) -> None:
     with pytest.raises(ValueError):
