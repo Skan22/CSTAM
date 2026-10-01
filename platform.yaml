@@ -18,21 +18,24 @@ vrrp:
   priority_a: 150
   priority_b: 100
   check_interval_seconds: 1
+# Flavors and images are what the felcloud project offers (surveyed read-only 2026-10-01; 20 GB disk
+# on everything under 4 cores/8 GB). G0.basic over shared/optimized is a guess until the difference
+# and the per-second price are known: the project is limited to 50 instances, 128 cores, 256 GB RAM.
 flavors:
-  gateway: m1.small
-  control_plane: m1.small
-  sandbox: m1.tiny
-  relay: m1.tiny
-  bastion: m1.tiny
+  gateway: G0.basic.1c2g
+  control_plane: G0.basic.2c4g
+  sandbox: G0.basic.1c1g
+  relay: G0.basic.1c1g
+  bastion: G0.basic.1c1g
 images:
-  base: debian-12
-  sandbox: ipo-sandbox-v1
+  base: Debian 13 - Trixie   # Podman 5.4 (the Quadlets need 5.0); Debian 12 ships 4.3
+  sandbox: ipo-sandbox-v1    # baked by ansible/playbooks/bake_image.yml
 network:
   edge_cidr: 10.0.0.0/24    # edge-net: the VIP and the gateways' public-facing ports
   mgmt_cidr: 10.30.0.0/24   # mgmt-net: control plane, agents, observability, SSH via the bastion
   vip: 10.0.0.100           # VRRP virtual address; the floating IP maps to it
   vrrp_router_id: 51
-  external_network: public  # Neutron external network that provides floating IPs
+  external_network: INTERNET  # Neutron external network that provides floating IPs
   hosts:                    # fixed addresses, so unicast VRRP peers and inventory are static
     gw-a: {edge: 10.0.0.11, sandbox: 10.20.0.2, mgmt: 10.30.0.11}
     gw-b: {edge: 10.0.0.12, sandbox: 10.20.0.3, mgmt: 10.30.0.12}
