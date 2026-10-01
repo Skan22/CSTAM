@@ -78,3 +78,17 @@ func TestWatchReportsTransitions(t *testing.T) {
 		}
 	}
 }
+
+// keepalived's `init_file` creates the track file holding 0 on every gateway, so a gateway that
+// was never faulted has the file; only a non-zero value is a fault.
+func TestAnInitialisedTrackFileIsNotAFault(t *testing.T) {
+	m := Monitor{FaultFile: filepath.Join(t.TempDir(), "fault")}
+	for content, want := range map[string]bool{"0\n": false, "0": false, "": false, "-100\n": true, "1": true, "junk": true} {
+		if err := os.WriteFile(m.FaultFile, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if got := m.Faulted(); got != want {
+			t.Errorf("Faulted() with %q = %v, want %v", content, got, want)
+		}
+	}
+}

@@ -10,7 +10,7 @@ sh lab/fetch-tools.sh validators   # Loki, Tempo, Alloy, Caddy, amtool, Quadlet 
 uv run pytest                      # deploy/, isolation/test_model.py; the labs skip
 uv run python -m chaos.run         # about 4 minutes
 uv run python -m isolation.run     # about 90 seconds
-uv run python -m chaos.demo        # narrated demo: routing, hot reload, failover (about 1 minute)
+uv run python -m chaos.demo        # interactive demo dashboard (--auto: scripted and narrated)
 ```
 
 | Directory | What it proves |

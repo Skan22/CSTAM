@@ -1,8 +1,12 @@
-"""A narrated, recordable demo on the real stack: `uv run python -m chaos.demo`.
+"""A recordable demo on the real stack.
+
+    uv run python -m chaos.demo          interactive dashboard: you press the keys (chaos/tui.py)
+    uv run python -m chaos.demo --auto   the same dashboard, driven by a narrated script
+    uv run python -m chaos.demo --tour   plain scrolling text, one scene per Enter (DEMO_PACE=s
+                                         advances by itself); what runs when stdout is not a terminal
 
 Boots the same lab as the chaos suite (real keepalived, Traefik and ipo-agent on two gateways, a
-sandbox backend, the real control plane) and walks through three scenes, pausing for Enter between
-them when run in a terminal (DEMO_PACE=seconds auto-advances instead):
+sandbox backend, the real control plane). The scenes:
 
   1. subdomain routing: each team's <slug>.<domain> reaches its sandbox, unknown names get 404;
   2. hot reload: a team is registered and removed while traffic flows, and its subdomain starts
@@ -164,9 +168,23 @@ def run(workdir: Path, dsn: str) -> None:
         w.shutdown()
 
 
+def interactive(workdir: Path, dsn: str, *, auto: bool) -> None:
+    from chaos import tui
+
+    w = boot(workdir, dsn)
+    try:
+        tui.run(w, auto=auto)
+    finally:
+        w.shutdown()
+
+
 def main(argv: list[str]) -> int:
     if argv[:1] == ["--inner"]:
-        run(Path(os.environ["IPO_LAB_WORKDIR"]), os.environ["IPO_LAB_DSN"])
+        workdir, dsn = Path(os.environ["IPO_LAB_WORKDIR"]), os.environ["IPO_LAB_DSN"]
+        if "--tour" in argv or not sys.stdout.isatty():
+            run(workdir, dsn)
+        else:
+            interactive(workdir, dsn, auto="--auto" in argv)
         return 0
     if not tools.can_unshare():
         print("unprivileged user namespaces are not available here", file=sys.stderr)
@@ -176,7 +194,7 @@ def main(argv: list[str]) -> int:
     pg.start()
     try:
         env = {**os.environ, "IPO_LAB_DSN": pg.dsn, "IPO_LAB_WORKDIR": str(work / "lab")}
-        cmd = netns.in_lab([sys.executable, "-m", "chaos.demo", "--inner"])
+        cmd = netns.in_lab([sys.executable, "-m", "chaos.demo", "--inner", *argv])
         return subprocess.run(cmd, env=env, cwd=Path(__file__).parents[1]).returncode
     finally:
         pg.stop()

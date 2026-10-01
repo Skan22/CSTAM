@@ -102,6 +102,10 @@ def test_old_master_returns_as_backup_without_a_flap(pair: World) -> None:
 def test_manual_failover_through_the_agent(pair: World) -> None:
     old = pair.master()
     new = pair.other(old)
+    # keepalived's init_file leaves the track file in place holding 0: that is not a fault. (The
+    # fixture's repair removed it, so put it back the way keepalived creates it.)
+    old.fault_file.write_text("0\n")
+    assert old.status()["faulted"] is False
     def fault() -> None:
         code, _ = http_json("POST", f"{old.agent_url}/fault")
         assert code == 200

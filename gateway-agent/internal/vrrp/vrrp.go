@@ -50,10 +50,16 @@ func (m Monitor) Clear() error {
 	return nil
 }
 
-// Faulted reports whether a fault is being injected.
+// Faulted reports whether a fault is being injected. keepalived's init_file creates the track
+// file holding 0 on every gateway, so the file existing means nothing: only a non-zero value
+// (Fault writes -100) is a fault.
 func (m Monitor) Faulted() bool {
-	_, err := os.Stat(m.FaultFile)
-	return err == nil
+	b, err := os.ReadFile(m.FaultFile)
+	if err != nil {
+		return false
+	}
+	s := strings.TrimSpace(string(b))
+	return s != "" && s != "0"
 }
 
 // Watch calls on with the state at start and again after each change, until ctx ends. A change
