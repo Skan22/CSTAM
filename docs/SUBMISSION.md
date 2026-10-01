@@ -12,6 +12,9 @@ is not done.
 | **Gateway data flow diagram** | [`gateway-data-flow.png`](diagrams/gateway-data-flow.png) (SVG: [`gateway-data-flow.svg`](diagrams/gateway-data-flow.svg)), explained step by step in [gateway data flow](architecture/gateway-data-flow.md) |
 | **Documentation** | the [index](README.md): architecture, guides, API reference, runbooks, ADRs, reports |
 
+A single PDF of the architecture, HA and data-flow documents with their diagrams is
+[`IPO-Architecture.pdf`](IPO-Architecture.pdf) (22 pages; rebuild with `python docs/build_pdf.py`).
+
 The three diagrams are generated from scripts in `docs/diagrams/` (`python <name>.py`), so they
 can be edited and re-rendered; the PNG and SVG files are committed.
 
