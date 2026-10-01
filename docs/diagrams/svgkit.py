@@ -7,6 +7,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 HERE = Path(__file__).parent
+TS = 1.14  # text scale: the diagrams are read on a page, so labels are larger than a screen needs
 W, H = 1720, 1200
 COL = {  # fill, stroke, text
     "req": ("#e8f1ff", "#2f6fdd", "#10294d"), "cfg": ("#f1eaff", "#7a4fd6", "#2a1457"),
@@ -29,11 +30,11 @@ def box(x: int, y: int, w: int, h: int, kind: str, title: str, *lines: str, dash
         out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="10" fill="{fill}" '
                    f'stroke="{stroke}" stroke-width="1.6"{dash}/>')
     n = 1 + len(lines)
-    top = y + h / 2 - (n - 1) * 10 + (5 if cyl else 0)
-    out.append(f'<text x="{x + w / 2}" y="{top}" text-anchor="middle" font-weight="700" fill="{text}">'
-               f'{escape(title)}</text>')
+    top = y + h / 2 - (n - 1) * 10.5 + (5 if cyl else 0)
+    out.append(f'<text x="{x + w / 2}" y="{top}" text-anchor="middle" font-weight="700" font-size="{15 * TS:.1f}" '
+               f'fill="{text}">{escape(title)}</text>')
     for i, ln in enumerate(lines):
-        out.append(f'<text x="{x + w / 2}" y="{top + 20 * (i + 1)}" text-anchor="middle" font-size="13" '
+        out.append(f'<text x="{x + w / 2}" y="{top + 21 * (i + 1)}" text-anchor="middle" font-size="{13 * TS:.1f}" '
                    f'fill="{text}">{escape(ln)}</text>')
     return x, y, w, h
 
@@ -50,9 +51,9 @@ def arrow(pts: list[tuple[float, float]], label: str = "", kind: str = "req", da
     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
     if num:
         out.append(f'<circle cx="{mx}" cy="{my}" r="11" fill="{stroke}"/><text x="{mx}" y="{my + 4.5}" '
-                   f'text-anchor="middle" font-size="12" font-weight="700" fill="#fff">{escape(num)}</text>')
+                   f'text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">{escape(num)}</text>')
     if label:
-        out.append(f'<text x="{mx}" y="{my + dy}" text-anchor="middle" font-size="12.5" '
+        out.append(f'<text x="{mx}" y="{my + dy}" text-anchor="middle" font-size="{12.5 * TS:.1f}" '
                    f'fill="{COL[kind][2]}">{escape(label)}</text>')
 
 
@@ -60,8 +61,8 @@ def lane(y: int, h: int, title: str, sub: str, kind: str) -> None:
     fill, stroke, text = COL[kind]
     out.append(f'<rect x="20" y="{y}" width="{W - 40}" height="{h}" rx="14" fill="{fill}" '
                f'fill-opacity="0.35" stroke="{stroke}" stroke-width="1.4"/>')
-    out.append(f'<text x="40" y="{y + 28}" font-size="18" font-weight="700" fill="{text}">'
-               f'{escape(title)}</text><text x="40" y="{y + 48}" font-size="13" fill="{text}">'
+    out.append(f'<text x="40" y="{y + 28}" font-size="{18 * TS:.1f}" font-weight="700" fill="{text}">'
+               f'{escape(title)}</text><text x="40" y="{y + 50}" font-size="{13 * TS:.1f}" fill="{text}">'
                f'{escape(sub)}</text>')
 
 
@@ -98,13 +99,14 @@ def begin(width: int, height: int, title: str, subtitle: str) -> None:
         f'<marker id="a-{k}" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto">'
         f'<path d="M0,0 L11,4.5 L0,9 z" fill="{COL[k][1]}"/></marker>' for k in COL) + '</defs>')
     out.append(f'<rect width="{W}" height="{H}" fill="#fff"/>')
-    out.append(f'<text x="30" y="36" font-size="26" font-weight="700" fill="#1c1c3a">{escape(title)}</text>'
-               f'<text x="30" y="60" font-size="14" fill="#555">{escape(subtitle)}</text>')
+    out.append(f'<text x="30" y="38" font-size="30" font-weight="700" fill="#1c1c3a">{escape(title)}</text>'
+               f'<text x="30" y="64" font-size="16" fill="#555">{escape(subtitle)}</text>')
 
 
 def text(x: float, y: float, s: str, kind: str = "ext", size: float = 13, bold: bool = False,
-         anchor: str = "start") -> None:
-    out.append(f'<text x="{x}" y="{y}" font-size="{size}" text-anchor="{anchor}" fill="{COL[kind][2]}"'
+         anchor: str = "start", rot: float = 0) -> None:
+    tf = f' transform="rotate({rot} {x} {y})"' if rot else ""
+    out.append(f'<text x="{x}" y="{y}"{tf} font-size="{size * TS:.1f}" text-anchor="{anchor}" fill="{COL[kind][2]}"'
                f'{" font-weight=\"700\"" if bold else ""}>{escape(s)}</text>')
 
 
@@ -112,9 +114,9 @@ def panel(x: int, y: int, w: int, h: int, kind: str, title: str, sub: str = "") 
     fill, stroke, tx = COL[kind]
     out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="14" fill="{fill}" fill-opacity="0.35" '
                f'stroke="{stroke}" stroke-width="1.4"/>')
-    text(x + 16, y + 26, title, kind, 17, True)
+    text(x + 16, y + 27, title, kind, 17, True)
     if sub:
-        text(x + 16, y + 46, sub, kind, 12.5)
+        text(x + 16, y + 49, sub, kind, 12.5)
 
 
 def finish(name: str, scale: float = 1.5) -> None:
@@ -129,3 +131,28 @@ def finish(name: str, scale: float = 1.5) -> None:
                         f"--screenshot={HERE / (name + '.png')}", f"file://{page}"],
                        capture_output=True, timeout=120)
     print(f"drawn {name} {W}x{H}")
+
+
+def legend(x: int, y: int, items: list[tuple[str, str]], w: int = 1620) -> None:
+    """A one-row key: swatches for the box colours, then how arrows and badges read."""
+    out.append(f'<rect x="{x}" y="{y}" width="{w}" height="40" rx="8" fill="#fafafa" stroke="#ddd"/>')
+    cx = x + 16
+    out.append(f'<text x="{cx}" y="{y + 26}" font-size="{12.5 * TS:.1f}" font-weight="700" fill="#444">Key</text>')
+    cx += 52
+    for kind, label in items:
+        if kind == "solid":
+            out.append(f'<path d="M{cx},{y + 20} L{cx + 34},{y + 20}" stroke="#555" stroke-width="2.2" marker-end="url(#a-ext)"/>')
+            cx += 44
+        elif kind == "dashed":
+            out.append(f'<path d="M{cx},{y + 20} L{cx + 34},{y + 20}" stroke="#555" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#a-ext)"/>')
+            cx += 44
+        elif kind == "badge":
+            out.append(f'<circle cx="{cx + 9}" cy="{y + 20}" r="10" fill="#555"/><text x="{cx + 9}" y="{y + 24.5}" text-anchor="middle" '
+                       f'font-size="11.5" font-weight="700" fill="#fff">1</text>')
+            cx += 26
+        else:
+            fill, stroke, _ = COL[kind]
+            out.append(f'<rect x="{cx}" y="{y + 11}" width="26" height="18" rx="4" fill="{fill}" stroke="{stroke}" stroke-width="1.6"/>')
+            cx += 34
+        out.append(f'<text x="{cx}" y="{y + 26}" font-size="{12.5 * TS:.1f}" fill="#333">{escape(label)}</text>')
+        cx += int(len(label) * 7.4) + 20

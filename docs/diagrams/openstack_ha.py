@@ -3,11 +3,10 @@
     python docs/diagrams/openstack_ha.py
 """
 
-from svgkit import arrow, begin, box, finish, panel, text
+from svgkit import arrow, begin, box, finish, legend, panel, text
 
-begin(1720, 1180, "OpenStack high availability",
-      "One floating IP and one VIP port; two gateways that can each hold the VIP; everything the failover "
-      "needs from Neutron and Nova, and what is redundant elsewhere.")
+begin(1720, 1236, "OpenStack high availability",
+      "One floating IP and one VIP port; two gateways that can each hold the VIP.")
 
 
 def side(x0: int, title: str, sub: str, a_state: str, b_state: str) -> None:
@@ -21,7 +20,8 @@ def side(x0: int, title: str, sub: str, a_state: str, b_state: str) -> None:
     arrow([(cx, 290), (cx, 320)], "", "req")
     for i, (name, state) in enumerate((("gw-a", a_state), ("gw-b", b_state))):
         gx = x0 + 40 + i * 400
-        host = panel(gx - 10, 420, 390, 195, "ext", "compute host A" if i == 0 else "compute host B, if the cloud has one", "")
+        host = panel(gx - 10, 420, 390, 195, "ext", "")
+        text(gx + 4, 608, "compute host A" if i == 0 else "compute host B, if the cloud has one", "ext", 13)
         k = {"MASTER": "ok", "BACKUP": "sig", "LOST": "bad"}[state]
         lines = {"MASTER": ("holds the VIP", "Traefik serving, adverts every 0.2 s"),
                  "BACKUP": ("listens for adverts", "Traefik loaded, routes identical"),
@@ -39,18 +39,15 @@ def side(x0: int, title: str, sub: str, a_state: str, b_state: str) -> None:
 
 side(20, "Normal", "gw-a is the MASTER, gw-b is hot standby", "MASTER", "BACKUP")
 side(870, "After losing gw-a's VM", "gw-b takes the VIP; clients reconnect to the same address", "LOST", "MASTER")
-text(36, 664, "VRRP adverts, unicast, every 0.2 s, gw-a to gw-b (dashed)", "sig", 12.5)
-text(886, 664, "t+0 gw-a dies; about 0.6 s later gw-b misses three adverts, becomes MASTER, adds the VIP, sends "
-     "gratuitous ARPs", "bad", 12.5)
-text(886, 684, "Measured under 50 new connections/s: worst gap 0.52 to 0.66 s over 11 VM-death runs "
-     "(Traefik crash: 1.2 to 1.7 s; keepalived stop: 0.12 s).", "bad", 12.5)
+text(36, 668, "dashed: VRRP adverts every 0.2 s", "sig", 12.5)
+text(886, 668, "gw-b takes the VIP in about 0.6 s; measured worst gap 0.52 to 0.66 s at 50 requests/s", "bad", 12.5)
 
 # what makes it work
 panel(20, 706, 1680, 190, "cfg", "What the handover needs from OpenStack")
 need = [
     ("Allowed address pair", "Both gateways' edge ports list the VIP, so", "port security lets them send and receive it"),
     ("A device-less VIP port", "Holds 10.0.0.100 and the floating IP, so", "the address survives either VM"),
-    ("Unicast VRRP", "Multicast is often filtered on Neutron; the", "security group admits VRRP between gateways"),
+    ("Unicast VRRP", "Multicast is often filtered, so", "adverts go unicast; the group admits VRRP"),
     ("FAULT releases at once", "Check script with no weight: two failed checks", "= FAULT = priority-0 advert, no wait"),
     ("nopreempt", "The old MASTER returns as BACKUP,", "so a recovery is not a second outage"),
 ]
@@ -59,7 +56,7 @@ for i, (t, l1, l2) in enumerate(need):
 
 # redundancy map
 panel(20, 916, 1680, 232, "ok", "What is redundant, and what is not",
-      "verified in the namespace lab with the real software; not yet on real OpenStack VMs")
+      "green: redundant, amber: partly or manual, red: single instance")
 red = [
     ("Gateways", "ok", ("VRRP pair, anti-affinity", "(soft: see the HA document)", "loss: about 0.6 s")),
     ("Control plane", "ok", ("two active replicas, leaders", "by advisory lock; gateways", "serve without it")),
@@ -70,4 +67,7 @@ red = [
 ]
 for i, (t, k, ls) in enumerate(red):
     box(40 + i * 275, 974, 262, 150, k, t, *ls)
+legend(50, 1164, [("ok", "MASTER or redundant"), ("sig", "BACKUP or partly redundant"), ("bad", "lost or single instance"),
+                  ("req", "traffic path"), ("cfg", "needed from OpenStack"), ("solid", "traffic"),
+                  ("dashed", "VRRP adverts")], 1620)
 finish("openstack-ha")

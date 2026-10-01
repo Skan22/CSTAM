@@ -6,12 +6,11 @@ Hand-laid out (Mermaid's automatic layout tangles this one): each lane is a left
 so no arrows cross. Edit the lists below and re-run; needs only `chromium` for the PNG.
 """
 
-from svgkit import COL, arrow, begin, box, chain, escape, finish, lane, out, spread
+from svgkit import COL, arrow, begin, box, chain, escape, finish, lane, legend, out, spread
 
 W = 1720
-begin(W, 1200, "Gateway data flow", "What moves through a gateway, and where it comes from: requests, "
-      "configuration, and the signals and telemetry that flow back. gw-b runs the identical stack as the "
-      "VRRP BACKUP.")
+begin(W, 1236, "Gateway data flow", "Requests, configuration, and the signals and telemetry that flow back. "
+      "gw-b runs the same stack as the standby.")
 # lane 1: requests
 lane(80, 290, "1  Request path", "a visitor reaching a team's sandbox, through whichever gateway holds the VIP", "req")
 b = chain(150, [
@@ -29,7 +28,7 @@ out.append(f'<text x="{tx + 270}" y="314" font-size="13" fill="{COL["tel"][2]}">
            f'</text>')
 
 # lane 2: configuration
-lane(390, 440, "2  Configuration path", "a route added or removed reaches both gateways as a signed, verified, probed config version", "cfg")
+lane(390, 410, "2  Configuration path", "a route added or removed reaches both gateways as a signed, verified, probed config version", "cfg")
 r1 = chain(445, [
     (220, "cfg", "Saga or admin", ("register, teardown,", "rollback")),
     (250, "store", "routes table", ("PostgreSQL, NOTIFY", "ipo_routes_changed")),
@@ -59,26 +58,17 @@ for i, (t, l1, l2) in enumerate(stages):
         arrow([(x - sg_ + 1, 652), (x - 1, 652)], "", "cfg")
 box(pos[3] + sw_ // 2 - 85, 740, 170, 56, "store", "live.yml", "Traefik reloads it", cyl=True)
 arrow([(pos[3] + sw_ / 2, 696), (pos[3] + sw_ / 2, 740)], "", "cfg")
-box(pos[4] - 20, 740, 240, 56, "req", "Traefik reloads, no restart", "in-flight requests unaffected")
-arrow([(pos[3] + sw_ // 2 + 85, 768), (pos[4] - 20, 768)], "", "cfg")
-box(pos[5] + 10, 740, 200, 56, "bad", "Probe fails or times out", "restore last known good")
-arrow([(pos[5] + sw_ / 2 + 10, 696), (pos[5] + sw_ / 2 + 10, 740)], "", "bad", dashed=True)
-box(pos[6] + 20, 740, 190, 56, "ok", "ack: live_version N", "per gateway")
-arrow([(pos[6] + sw_ / 2 + 10, 696), (pos[6] + sw_ / 2 + 10, 740)], "", "ok", num="D", dy=-8)
-out.append(f'<text x="50" y="768" font-size="13" fill="{COL["cfg"][2]}"><tspan font-weight="700">Rejections</tspan> '
-           f'403 bad signature</text>'
-           f'<text x="50" y="788" font-size="13" fill="{COL["cfg"][2]}">422 policy violation, 409 replay or older</text>')
-out.append(f'<text x="50" y="860" font-size="13" fill="{COL["cfg"][2]}"></text>')
-out.append(f'<text x="40" y="816" font-size="13" fill="{COL["cfg"][2]}"><tspan font-weight="700">Version rules:</tspan> '
-           f'a version goes live only when both gateways ack it; a rejected one is never retried (a transport failure is, '
-           f'with backoff); rollback re-issues an earlier body under a higher number. '
-           f'<tspan font-weight="700">If the control plane is down</tspan> both gateways keep serving the last version they '
-           f'verified.</text>')
+box(pos[4] + 6, 740, 215, 56, "req", "Traefik reloads", "no restart, requests unaffected")
+arrow([(pos[3] + sw_ // 2 + 85, 768), (pos[4] + 6, 768)], "", "cfg")
+box(pos[5] + 20, 740, 210, 56, "bad", "Probe fails or times out", "restore last known good")
+arrow([(pos[5] + sw_ / 2 + 20, 696), (pos[5] + sw_ / 2 + 20, 740)], "", "bad", dashed=True)
+box(pos[6] + 25, 740, 190, 56, "ok", "ack: live_version N", "per gateway")
+arrow([(pos[6] + sw_ / 2 + 25, 696), (pos[6] + sw_ / 2 + 25, 740)], "", "ok", num="D", dy=-8)
 
 # lane 3: signals and telemetry
-lane(850, 330, "3  Signals and telemetry", "what the gateways report back, and what the control plane does with it", "sig")
-out.append(f'<text x="40" y="930" font-weight="700" fill="{COL["sig"][2]}">VRRP state and liveness</text>')
-chain(942, [
+lane(830, 330, "3  Signals and telemetry", "what the gateways report back, and what the control plane does with it", "sig")
+out.append(f'<text x="40" y="912" font-weight="700" fill="{COL["sig"][2]}">VRRP state and liveness</text>')
+chain(924, [
     (200, "sig", "keepalived", ("VRRP, unicast, nopreempt", "Traefik check, no weight")),
     (215, "store", "/run/ipo/vrrp_state", ("written by the notify hook", "on every change")),
     (215, "sig", "ipo-agent heartbeat", ("every 5 s: VRRP state", "and live config version")),
@@ -86,8 +76,8 @@ chain(942, [
     (215, "store", "gateway_status", ("one row per gateway:", "vrrp_since, last_heartbeat")),
     (215, "bad", "Split-brain check", ("two fresh MASTERs after the", "newest promotion = alarm")),
 ], [("notify", "I"), ("read", "J"), ("", "K"), ("upsert", "L"), ("", "")], "sig")
-out.append(f'<text x="40" y="1066" font-weight="700" fill="{COL["tel"][2]}">Traffic and metrics</text>')
-chain(1078, [
+out.append(f'<text x="40" y="1048" font-weight="700" fill="{COL["tel"][2]}">Traffic and metrics</text>')
+chain(1060, [
     (200, "store", "access.log", ("Traefik JSON: host, status,", "bytes, duration")),
     (215, "tel", "ipo-agent reporter", ("counts per host for 10 s;", "no IPs, no query strings")),
     (215, "cfg", "POST .../traffic", ("only hosts that have", "a route are kept")),
@@ -95,4 +85,7 @@ chain(1078, [
     (215, "tel", "/metrics at scrape", ("ipo_team_requests_5m,", "ipo_gateway_masters ...")),
     (215, "tel", "Prometheus", ("Grafana panels, dashboard,", "alert rules")),
 ], [("tail", "M"), ("batch", "N"), ("", "O"), ("gauges", "P"), ("", "")], "tel")
+legend(50, 1178, [("req", "request path"), ("cfg", "configuration"), ("sig", "state and liveness"), ("tel", "telemetry"),
+                  ("store", "stored data"), ("bad", "failure outcome"), ("ok", "success"), ("solid", "data flow"),
+                  ("dashed", "response or failure"), ("badge", "step order")], 1620)
 finish("gateway-data-flow")
