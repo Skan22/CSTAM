@@ -244,6 +244,7 @@ class Gateway:
             "IPO_AGENT_LISTEN": f"{self.addr['mgmt']}:8443", "IPO_AGENT_INSECURE": "1",
             "IPO_METRICS_ADDR": "127.0.0.1:9100", "IPO_HEARTBEAT_SECONDS": "1",
             "IPO_PULL_SECONDS": "1", "IPO_CP_URL": self.cp_url,
+            "IPO_ACCESS_LOG": str(self.access_log), "IPO_TRAFFIC_SECONDS": "1",
             "IPO_CP_EMAIL": ADMIN[0], "IPO_CP_PASSWORD": ADMIN[1]})
 
     def start_keepalived(self) -> None:
