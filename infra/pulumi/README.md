@@ -27,8 +27,10 @@ no DHCP on sandbox-net.
 
 **Tests** (`uv run pytest`): the rules module against the spec, every guardrail, and the whole
 program under Pulumi's mocks, with each resource it would create passed through the policy pack.
-`pulumi preview --policy-pack policy` has been run against the team's FelCloud project (89
-resources to create, nothing created); `pulumi up` has not.
+`pulumi preview` and `pulumi up` / `destroy` have been run against the team's FelCloud project
+(`docs/reports/felcloud-survey.md` has what they found: no free floating IPs, and hard anti-affinity
+failing, hence the `floatingIps` and `antiAffinity` settings). The Ansible roles have not been run
+on those VMs.
 
 **What preview does and does not check.** CrossGuard cannot evaluate a resource whose inputs
 include ids that exist only after creation, so in a preview it skips about 58 of the 89

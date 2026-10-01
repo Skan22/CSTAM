@@ -33,7 +33,7 @@ pulumi.runtime.set_mocks(MOCKS, preview=False)
 from ipo_infra import program  # noqa: E402  (after the mocks, as Pulumi requires)
 
 PLATFORM, GROUPS = spec.load()
-BUILT = program.build(PLATFORM, GROUPS, key_pair="ipo-ops")
+BUILT = program.build(PLATFORM, GROUPS, key_pair="ipo-ops", public_key="ssh-ed25519 AAAA test")
 
 
 def of_type(kind: str) -> list[tuple[str, dict[str, Any]]]:
@@ -95,12 +95,17 @@ def test_vms_carry_their_role_boot_from_the_config_drive_and_keep_pairs_apart(cr
     assert set(vms) == set(PLATFORM["network"]["hosts"])
     for i in vms.values():
         assert i["configDrive"] is True and i["imageName"] == PLATFORM["images"]["base"]
-        assert i["keyPair"] == "ipo-ops"
+        assert i["keyPair"] == "ipo-ops"  # the key pair resource's name output
     assert {h for h, i in vms.items() if i.get("schedulerHints")} == {"gw-a", "gw-b", "cp-1", "cp-2"}
     groups = dict(of_type(":ServerGroup"))
-    assert {g["policies"] for g in groups.values()} == {"anti-affinity"} and len(groups) == 2
+    assert {g["policies"] for g in groups.values()} == {"soft-anti-affinity"} and len(groups) == 2
     # The edge port is a gateway's first NIC, as roles/gateway_network assumes.
     assert vms["gw-a"]["networks"][0]["port"] == "gw-a-edge-id"
+
+
+def test_the_key_pair_is_created_from_the_configured_public_key(created: Any) -> None:
+    [(name, i)] = of_type(":Keypair")
+    assert name == "ipo-ops" and i["publicKey"] == "ssh-ed25519 AAAA test"
 
 
 def test_security_groups_are_the_rules_module_output(created: Any) -> None:
@@ -114,3 +119,25 @@ def test_the_whole_program_passes_the_policy_pack(created: Any) -> None:
                   if (msg := check(typ, name, inputs))]
     assert not violations
     assert len(created) > 60
+
+
+def test_without_floating_ips_nothing_public_is_created() -> None:
+    before = len(MOCKS.resources)
+    built = program.build(PLATFORM, GROUPS, key_pair="ipo-ops", prefix="nofip-", floating_ips=False)
+    assert built.gateways.fip is None and built.bastion.fip is None
+    assert built.outputs()["floating_ip"] is None and built.outputs()["bastion_floating_ip"] is None
+    assert not any(typ.endswith(":FloatingIp") and name.startswith("nofip-")
+                   for typ, name, _ in MOCKS.resources[before:])
+
+
+def test_hard_anti_affinity_can_be_asked_for() -> None:
+    built = program.build(PLATFORM, GROUPS, key_pair="ipo-ops", prefix="hard-", affinity="anti-affinity")
+
+    @pulumi.runtime.test  # type: ignore[untyped-decorator]
+    def wait() -> pulumi.Output[Any]:
+        return pulumi.Output.all(built.outputs()["port_ids"], built.outputs()["security_groups"])
+
+    wait()
+    groups = [i for typ, name, i in MOCKS.resources if typ.endswith(":ServerGroup")
+              and name.startswith("hard-")]
+    assert len(groups) == 2 and {g["policies"] for g in groups} == {"anti-affinity"}

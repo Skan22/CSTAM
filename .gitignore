@@ -14,3 +14,6 @@ dist/
 secrets.yaml
 .env
 *.tsbuildinfo
+
+# the demo's own stack (chaos/cloud.py): its salt and keys are local state
+infra/pulumi/Pulumi.live.yaml

@@ -13,3 +13,15 @@ config:
     type: string
     default: ""
     description: Prefix for every name, when dev and demo must share one OpenStack project
+  ipo:publicKey:
+    type: string
+    default: ""
+    description: SSH public key to upload as the key pair; empty means the key pair already exists
+  ipo:floatingIps:
+    type: boolean
+    default: true
+    description: Allocate the two public floating IPs; turn off when the external network has none free
+  ipo:antiAffinity:
+    type: string
+    default: soft-anti-affinity
+    description: anti-affinity or soft-anti-affinity for the gateway and control-plane pairs

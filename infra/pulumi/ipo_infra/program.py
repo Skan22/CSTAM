@@ -90,7 +90,7 @@ class _Hosts(pulumi.ComponentResource):
         hint = None
         if anti_affinity:
             sg = openstack.compute.ServerGroup(f"{prefix}{name}-anti", name=f"{prefix}{name}-anti",
-                                               policies="anti-affinity", opts=child)
+                                               policies=ctx.affinity, opts=child)
             hint = [openstack.compute.InstanceSchedulerHintArgs(group=sg.id)]
         self.ports: dict[str, dict[str, openstack.networking.Port]] = {}
         self.instances: dict[str, openstack.compute.Instance] = {}
@@ -134,11 +134,14 @@ class GatewayPair(_Hosts):
         child = pulumi.ResourceOptions(parent=self)
         self.vip_port = port(f"{ctx.prefix}vip-edge", ctx.nets, ctx.sgs, "edge", vip, "sg-gateway.edge",
                              child, tags=["role=vip"])
-        self.fip = openstack.networking.FloatingIp(
-            f"{ctx.prefix}fip-public", pool=ctx.platform["network"]["external_network"],
-            description="public address of the VIP", opts=child)
-        openstack.networking.FloatingIpAssociate(f"{ctx.prefix}fip-public-vip", floating_ip=self.fip.address,
-                                                 port_id=self.vip_port.id, opts=child)
+        self.fip: openstack.networking.FloatingIp | None = None
+        if ctx.floating_ips:
+            self.fip = openstack.networking.FloatingIp(
+                f"{ctx.prefix}fip-public", pool=ctx.platform["network"]["external_network"],
+                description="public address of the VIP", opts=child)
+            openstack.networking.FloatingIpAssociate(
+                f"{ctx.prefix}fip-public-vip", floating_ip=self.fip.address, port_id=self.vip_port.id,
+                opts=child)
 
 
 class ControlPlane(_Hosts):
@@ -164,12 +167,14 @@ class Bastion(_Hosts):
     def __init__(self, name: str, ctx: "Context", opts: pulumi.ResourceOptions | None = None) -> None:
         super().__init__("ipo:infra:Bastion", name, ["bastion"], ctx, anti_affinity=False, opts=opts)
         child = pulumi.ResourceOptions(parent=self)
-        self.fip = openstack.networking.FloatingIp(
-            f"{ctx.prefix}fip-bastion", pool=ctx.platform["network"]["external_network"],
-            description="WireGuard", opts=child)
-        openstack.networking.FloatingIpAssociate(
-            f"{ctx.prefix}fip-bastion-port", floating_ip=self.fip.address,
-            port_id=self.ports["bastion"]["mgmt"].id, opts=child)
+        self.fip: openstack.networking.FloatingIp | None = None
+        if ctx.floating_ips:
+            self.fip = openstack.networking.FloatingIp(
+                f"{ctx.prefix}fip-bastion", pool=ctx.platform["network"]["external_network"],
+                description="WireGuard", opts=child)
+            openstack.networking.FloatingIpAssociate(
+                f"{ctx.prefix}fip-bastion-port", floating_ip=self.fip.address,
+                port_id=self.ports["bastion"]["mgmt"].id, opts=child)
 
 
 @dataclass(frozen=True)
@@ -178,8 +183,10 @@ class Context:
     groups: dict[str, Any]
     nets: Networks
     sgs: SecurityGroups
-    key_pair: str
+    key_pair: "pulumi.Input[str]"
     prefix: str
+    floating_ips: bool = True
+    affinity: str = "soft-anti-affinity"
 
 
 class Built:
@@ -193,8 +200,8 @@ class Built:
         hosts = (self.gateways, self.control, self.relay, self.bastion)
         return {
             "vip": self.platform["network"]["vip"],
-            "floating_ip": self.gateways.fip.address,
-            "bastion_floating_ip": self.bastion.fip.address,
+            "floating_ip": self.gateways.fip.address if self.gateways.fip else None,
+            "bastion_floating_ip": self.bastion.fip.address if self.bastion.fip else None,
             "vip_port_id": self.gateways.vip_port.id,
             "hosts": self.platform["network"]["hosts"],
             "port_ids": {h: {n: p.id for n, p in ports.items()}
@@ -203,9 +210,21 @@ class Built:
         }
 
 
-def build(platform: dict[str, Any], groups: dict[str, Any], *, key_pair: str, prefix: str = "") -> Built:
+def build(platform: dict[str, Any], groups: dict[str, Any], *, key_pair: str, prefix: str = "",
+          public_key: str = "", floating_ips: bool = True,
+          affinity: str = "soft-anti-affinity") -> Built:
+    """`public_key`, when given, is uploaded as the Nova key pair named `key_pair`; otherwise the
+    key pair must already exist in the project. Without `floating_ips` (the external network has
+    no free address, say) the platform is built without its two public addresses. `affinity` is the
+    policy of the gateway and control-plane server groups: `anti-affinity` refuses to boot a VM
+    when no other host is free (FelCloud's project failed that way, so soft is the default),
+    `soft-anti-affinity` separates them when it can."""
     nets = Networks("networks", platform, prefix)
     sgs = SecurityGroups("security-groups", groups, platform, prefix)
-    ctx = Context(platform, groups, nets, sgs, key_pair, prefix)
+    key: pulumi.Input[str] = key_pair
+    if public_key:
+        key = openstack.compute.Keypair(f"{prefix}{key_pair}", name=f"{prefix}{key_pair}",
+                                        public_key=public_key).name
+    ctx = Context(platform, groups, nets, sgs, key, prefix, floating_ips, affinity)
     return Built(platform, nets, sgs, GatewayPair("gateways", ctx), ControlPlane("control-plane", ctx),
                  Relay("relay", ctx), Bastion("bastion", ctx))

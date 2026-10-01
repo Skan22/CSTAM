@@ -32,3 +32,18 @@ availability zone, TN-Carthage). Nothing was created. Credentials are not in the
 The instance limit is the one that bites: the plan's "at least 30 teams" fits with a pool of
 five, but a registration burst past that fails at Nova, which the reserve-free-IPs guard does not
 see (it counts addresses, not instances). Ask FelCloud for more if the burst test needs it.
+
+## What the first real `pulumi up` found (2026-10-01)
+
+- **No floating IPs.** The `INTERNET` pool (197.5.133.1-230) answered every floating-IP request
+  with `ExternalIpAddressExhausted`, although the two routers did get gateway addresses from it.
+  The program now builds without the VIP's and the bastion's public addresses when none can be
+  allocated (`ipo:floatingIps=false`; the demo checks first by allocating and releasing one).
+  Until FelCloud frees addresses, the platform has no public entry point and WireGuard cannot be
+  reached from outside.
+- **Hard anti-affinity fails.** With `anti-affinity` server groups, the four VMs in them (gateways
+  and control plane) went to ERROR while the two without a group booted, which fits a single
+  compute host in TN-Carthage. The default is now `soft-anti-affinity`; if there is one host, a
+  host failure takes both gateways of a pair, which the failover design does not cover.
+- **Timing.** From an empty project: 86 resources, VMs ACTIVE in about 45 s, and `pulumi destroy`
+  in about 30 s.
