@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "../api/session";
 import { must, type SettingsPatch } from "../api/types";
 import { Button, Card, Empty, ErrorNote, Loading, useAction } from "../components/ui";
@@ -18,10 +18,15 @@ export function Settings() {
   const { busy, error, run } = useAction();
   const values = settings.data?.values;
 
-  useEffect(() => {
-    if (values) setDraft(Object.fromEntries(FIELDS.map((f) => [f.key, String(values[f.key] ?? "")])));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(values)]);
+  // Edits are kept apart from the server's values, which show through until a field is touched.
+  // New server values (after a save, or someone else's change) drop the edits, in the same render
+  // that first shows them, so a late effect can never overwrite what the user has just typed.
+  const signature = JSON.stringify(values);
+  const [seen, setSeen] = useState(signature);
+  if (signature !== seen) {
+    setSeen(signature);
+    setDraft({});
+  }
 
   const changed: SettingsPatch = {};
   for (const f of FIELDS) {
@@ -51,7 +56,7 @@ export function Settings() {
                 <input
                   type="number"
                   min={0}
-                  value={draft[f.key] ?? ""}
+                  value={draft[f.key] ?? String(values[f.key] ?? "")}
                   onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
                   className="rounded-lg border border-line bg-raised px-3 py-2 text-base"
                 />

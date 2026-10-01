@@ -9,6 +9,7 @@ import { Ipam } from "./pages/Ipam";
 import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
+import { TeamHome } from "./pages/TeamHome";
 import { Teams } from "./pages/Teams";
 import { Traffic } from "./pages/Traffic";
 
@@ -31,6 +32,16 @@ export default function App() {
   const s = useSession();
   const route = useRoute();
   if (!s) return <Login />;
+  if (s.role === "team") {
+    // A team account has one page and its own event stream; the staff routes would only 403.
+    return (
+      <LiveProvider stream="/v1/me/events">
+        <Shell route="team" title="Your team" nav={[{ path: "team", label: "My team", min: "viewer" }]}>
+          <TeamHome />
+        </Shell>
+      </LiveProvider>
+    );
+  }
 
   const def = ROUTES.find((r) => r.path === route);
   const allowed = def && can(s.role, def.min);

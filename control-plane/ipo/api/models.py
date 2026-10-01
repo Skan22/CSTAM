@@ -27,6 +27,33 @@ class RegisterRequest(Strict):
     slug: str = Field(min_length=1, max_length=63, description="Becomes <slug>.<domain>")
 
 
+class TeamUserRequest(Strict):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=12, max_length=1024)
+
+
+class TeamUser(BaseModel):
+    email: str
+    team_id: UUID
+
+
+class TeamView(BaseModel):
+    """What a team sees of itself: no addresses, no owner."""
+
+    id: UUID
+    slug: str
+    host: str
+    state: str
+    created_at: datetime
+    expires_at: datetime
+
+
+class Me(BaseModel):
+    email: str
+    role: str
+    team: TeamView | None = Field(description="Set for team accounts only")
+
+
 class Registered(BaseModel):
     job_id: UUID
     team_id: UUID

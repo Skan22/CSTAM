@@ -48,7 +48,7 @@ export function renderLive(ui: ReactElement) {
   return { hub, ...render(<LiveProvider hub={hub}>{ui}</LiveProvider>) };
 }
 
-export async function signIn(role: "viewer" | "operator" | "admin") {
+export async function signIn(role: "viewer" | "operator" | "admin" | "team") {
   session.logout();
   mockApi({ "POST /v1/auth/login": { access_token: "tok", token_type: "bearer", expires_in: 900, role } });
   await login(`${role}@x`, "pw");

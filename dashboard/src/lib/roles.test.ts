@@ -11,3 +11,8 @@ test("an unknown role is treated as the least powerful", () => {
   expect(asRole("root")).toBe("viewer");
   expect(asRole("admin")).toBe("admin");
 });
+
+test("a team account is on no rung of the staff ladder", () => {
+  expect(asRole("team")).toBe("team");
+  expect(can("team", "viewer")).toBe(false);
+});

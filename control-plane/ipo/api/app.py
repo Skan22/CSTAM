@@ -111,7 +111,44 @@ def _get_team(conn: psycopg.Connection, team_id: UUID) -> models.Team:
     return _team_row(row)
 
 
-def _stream(deps: AppDeps, stop: threading.Event) -> Iterator[str | None]:
+def _team_view(conn: psycopg.Connection, team_id: str) -> models.TeamView:
+    r = conn.execute("SELECT id, slug, subdomain, state, created_at, expires_at FROM teams"
+                     " WHERE id = %s", (team_id,)).fetchone()
+    if r is None:
+        raise Problem(404, "not-found", "Not Found", "your team no longer exists")
+    return models.TeamView(id=r[0], slug=r[1], host=r[2], state=r[3], created_at=r[4],
+                           expires_at=r[5])
+
+
+TEAM_EVENTS = ("team.active", "team.draining", "team.deleted", "team.failed")
+
+
+def _my_team(deps: AppDeps, team_id: str) -> models.TeamView:
+    with deps.connect() as conn:
+        return _team_view(conn, team_id)
+
+
+def team_events(team_id: str, host: str) -> Callable[[str], str | None]:
+    """A filter for one team's event stream: its own lifecycle events and a nudge when its host
+    served traffic. Everything else, and every other team's data, is dropped."""
+
+    def keep(payload: str) -> str | None:
+        try:
+            data = json.loads(payload)
+        except ValueError:
+            return None
+        kind = data.get("kind")
+        if kind in TEAM_EVENTS and data.get("team_id") == team_id:
+            return json.dumps({"kind": kind, "slug": data.get("slug")})
+        if kind == "traffic.batch" and host in data.get("hosts", []):
+            return json.dumps({"kind": kind})
+        return None
+
+    return keep
+
+
+def _stream(deps: AppDeps, stop: threading.Event,
+            select: Callable[[str], str | None] | None = None) -> Iterator[str | None]:
     """Blocking generator over Postgres NOTIFY; owns its connection and closes it on exit.
 
     Yields None once a second while idle: the server only notices a departed client when it
@@ -123,13 +160,16 @@ def _stream(deps: AppDeps, stop: threading.Event) -> Iterator[str | None]:
         seq, quiet_since = 0, time.monotonic()
         while not stop.is_set():
             for note in conn.notifies(timeout=1.0):
+                payload = select(note.payload) if select else note.payload
+                if payload is None:
+                    continue
                 seq += 1
                 try:
-                    kind = str(json.loads(note.payload).get("kind", "message"))
+                    kind = str(json.loads(payload).get("kind", "message"))
                 except (ValueError, AttributeError):
                     kind = "message"
                 kind = kind.replace("\n", " ")
-                yield f"id: {seq}\nevent: {kind}\ndata: {note.payload}\n\n"
+                yield f"id: {seq}\nevent: {kind}\ndata: {payload}\n\n"
                 quiet_since = time.monotonic()
                 if stop.is_set():
                     break
@@ -142,9 +182,10 @@ def _stream(deps: AppDeps, stop: threading.Event) -> Iterator[str | None]:
         conn.close()
 
 
-async def _events_body(deps: AppDeps, request: Request) -> AsyncIterator[str]:
+async def _events_body(deps: AppDeps, request: Request,
+                       select: Callable[[str], str | None] | None = None) -> AsyncIterator[str]:
     stop = threading.Event()
-    it = _stream(deps, stop)
+    it = _stream(deps, stop, select)
     done = object()
     try:
         while True:
@@ -209,12 +250,20 @@ def create_app(deps: AppDeps) -> FastAPI:
     @app.post("/v1/auth/login", tags=["auth"], response_model=models.Token, responses={
         401: {"description": "Wrong email or password"}})
     def login(body: models.LoginRequest, conn: psycopg.Connection = Db) -> models.Token:
-        role = users.authenticate(conn, body.email, body.password)
-        if role is None:
+        who = users.authenticate(conn, body.email, body.password)
+        if who is None:
             raise Problem(401, "unauthorized", "Unauthorized", "invalid email or password",
                           headers={"WWW-Authenticate": "Bearer"})
-        token = auth.issue(deps.jwt_secret, deps.token_ttl_seconds, body.email, role)
-        return models.Token(access_token=token, expires_in=deps.token_ttl_seconds, role=role)
+        token = auth.issue(deps.jwt_secret, deps.token_ttl_seconds, body.email, who.role,
+                           who.team_id)
+        return models.Token(access_token=token, expires_in=deps.token_ttl_seconds, role=who.role)
+
+    @app.get("/v1/me", tags=["auth"], response_model=models.Me)
+    def me(who: Principal = Depends(auth.require_any()),
+           conn: psycopg.Connection = Db) -> models.Me:
+        """The caller's own account; for a team account, its team."""
+        return models.Me(email=who.username, role=who.role,
+                         team=_team_view(conn, who.team_id) if who.team_id else None)
 
     # ------------------------------------------------------------ teams
     @app.post("/v1/teams", tags=["teams"], status_code=202, response_model=models.Registered,
@@ -439,6 +488,52 @@ def create_app(deps: AppDeps) -> FastAPI:
                            limit: int = Query(50, ge=1, le=200), _: Principal = viewer,
                            conn: psycopg.Connection = Db) -> dict[str, Any]:
         return {"requests": traffic.recent(conn, limit, host=host.lower() if host else None)}
+
+    # ------------------------------------------------------- team accounts
+    @app.post("/v1/teams/{team_id}/users", tags=["teams"], status_code=201,
+              response_model=models.TeamUser, responses={
+                  404: {"description": "No such team"},
+                  409: {"description": "That email already has an account"}})
+    def create_team_user(team_id: UUID, body: models.TeamUserRequest, who: Principal = admin,
+                         conn: psycopg.Connection = Db) -> models.TeamUser:
+        """Give a team a login that sees only that team's own traffic."""
+        row = conn.execute("SELECT slug FROM teams WHERE id = %s AND state <> 'deleted'",
+                           (team_id,)).fetchone()
+        if row is None:
+            raise Problem(404, "not-found", "Not Found", f"team {team_id} does not exist")
+        try:
+            users.create_team_user(conn, str(team_id), body.email, body.password)
+        except users.EmailTaken as exc:
+            raise Problem(409, "email-taken", "Conflict",
+                          "that email already has an account") from exc
+        audit(conn, who.username, "user.create", body.email, team=row[0], role="team")
+        return models.TeamUser(email=body.email, team_id=team_id)
+
+    team_only = Depends(auth.require_team())
+
+    @app.get("/v1/me/traffic", tags=["me"], response_model=models.Traffic)
+    def my_traffic(window_minutes: int = Query(60, ge=1, le=1440), who: Principal = team_only,
+                   conn: psycopg.Connection = Db) -> dict[str, Any]:
+        """Your team's requests, errors, bytes and latency over the window."""
+        return traffic.summary(conn, window_minutes, team_id=who.team_id)
+
+    @app.get("/v1/me/traffic/recent", tags=["me"], response_model=models.RecentTrafficList)
+    def my_recent_traffic(limit: int = Query(50, ge=1, le=200), who: Principal = team_only,
+                          conn: psycopg.Connection = Db) -> dict[str, Any]:
+        return {"requests": traffic.recent(conn, limit, team_id=who.team_id)}
+
+    @app.get("/v1/me/events", tags=["me"], response_class=StreamingResponse, responses={
+        200: {"content": {"text/event-stream": {}}, "description": "Server-sent events"}})
+    async def my_events(
+        request: Request, who: Principal = Depends(auth.require_team(query_token=True)),
+    ) -> StreamingResponse:
+        """Only your team's lifecycle events, and a nudge when your host served traffic."""
+        assert who.team_id
+        view = await run_in_threadpool(_my_team, deps, who.team_id)
+        return StreamingResponse(
+            _events_body(deps, request, team_events(who.team_id, view.host)),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     # ----------------------------------------------------------- config
     @app.get("/v1/config/latest", tags=["config"], response_model=models.ConfigEnvelope,

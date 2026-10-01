@@ -25,3 +25,5 @@ export type TrafficPoint = S["TrafficPoint"];
 export type TrafficTotals = S["TrafficTotals"];
 export type TeamTraffic = S["TeamTraffic"];
 export type RecentRequest = S["RecentTraffic"];
+export type Me = S["Me"];
+export type TeamView = S["TeamView"];

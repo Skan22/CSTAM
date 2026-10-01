@@ -5,17 +5,17 @@ import { EventHub, type LiveEvent } from "./events";
 const HubContext = createContext<EventHub | null>(null);
 
 /** Owns the single SSE connection for the logged-in user. */
-export function LiveProvider({ children, hub: injected }: { children: ReactNode; hub?: EventHub }) {
+export function LiveProvider({ children, hub: injected, stream = "/v1/events" }: { children: ReactNode; hub?: EventHub; stream?: string }) {
   const hub = useMemo(
     () =>
       injected ??
       new EventHub({
         url: () => {
           const s = session.get();
-          return s ? `/v1/events?access_token=${encodeURIComponent(s.token)}` : null;
+          return s ? `${stream}?access_token=${encodeURIComponent(s.token)}` : null;
         },
       }),
-    [injected],
+    [injected, stream],
   );
   useEffect(() => {
     hub.start();

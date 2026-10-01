@@ -1,13 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { session } from "../api/session";
 import { useConnectionStatus, useSession } from "../lib/live";
-import { can, type Role } from "../lib/roles";
+import { can, type StaffRole } from "../lib/roles";
 import { Badge, Button, type Tone } from "./ui";
 
 export interface Route {
   path: string;
   label: string;
-  min: Role;
+  min: StaffRole;
 }
 
 export const ROUTES: Route[] = [
@@ -42,17 +42,17 @@ function useTheme() {
   return [theme, () => setTheme((t) => (t === "dark" ? "light" : "dark"))] as const;
 }
 
-export function Shell({ route, children }: { route: string; children: ReactNode }) {
+export function Shell({ route, children, nav: fixedNav, title = "IPO Control" }: { route: string; children: ReactNode; nav?: Route[]; title?: string }) {
   const s = useSession();
   const status = useConnectionStatus();
   const [theme, toggle] = useTheme();
   const live = STATUS[status] ?? STATUS.stopped!;
-  const nav = ROUTES.filter((r) => can(s?.role, r.min));
+  const nav = fixedNav ?? ROUTES.filter((r) => can(s?.role, r.min));
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[13rem_1fr]">
       <aside className="border-b border-line bg-surface p-4 md:border-b-0 md:border-r">
-        <div className="mb-4 text-xl font-extrabold">IPO Control</div>
+        <div className="mb-4 text-xl font-extrabold">{title}</div>
         <nav aria-label="Main" className="flex flex-wrap gap-1 md:flex-col">
           {nav.map((r) => (
             <a
