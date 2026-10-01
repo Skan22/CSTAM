@@ -27,5 +27,13 @@ no DHCP on sandbox-net.
 
 **Tests** (`uv run pytest`): the rules module against the spec, every guardrail, and the whole
 program under Pulumi's mocks, with each resource it would create passed through the policy pack.
-Neither `pulumi preview` nor `up` has been run: no Pulumi CLI or OpenStack project was available
-where this was written.
+`pulumi preview --policy-pack policy` has been run against the team's FelCloud project (89
+resources to create, nothing created); `pulumi up` has not.
+
+**What preview does and does not check.** CrossGuard cannot evaluate a resource whose inputs
+include ids that exist only after creation, so in a preview it skips about 58 of the 89
+resources (every rule that names a remote group, every port and VM) with "can't run policy ...
+during preview". They are checked at `up`, as each is registered with its ids known, and a
+mandatory violation stops that resource. The full pre-merge gate is therefore `tests/test_program.py`,
+which runs every guardrail over every resource the program creates under mocks, where nothing is
+unknown; CI runs it before `preview`.
