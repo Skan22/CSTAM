@@ -1,0 +1,32 @@
+%%{init: {"flowchart": {"htmlLabels": true, "curve": "basis"}}}%%
+flowchart TB
+  classDef ok fill:#e8f8ec,stroke:#2f9e55,color:#0f3a1d
+  classDef bad fill:#fdeaea,stroke:#c24141,color:#4d1010
+  classDef step fill:#f1eaff,stroke:#7a4fd6,color:#2a1457
+
+  in(["PUT /config from the control plane<br/>or the 5 s pull loop<br/>envelope: version, sha256, signature, body"])
+  v1["1 verify<br/>Ed25519 over version + sha256 + body"]:::step
+  v2["2 validate<br/>JSON shape, one Host per router, unique hosts,<br/>backends inside the sandbox CIDR or the canary,<br/>allowed middlewares only"]:::step
+  replay{"version above<br/>the live one?"}
+  v3["3 stage<br/>write and fsync staging.json"]:::step
+  v4["4 swap<br/>atomic rename onto live.yml"]:::step
+  v5["5 converge<br/>Traefik API lists the new routers"]:::step
+  v6["6 probe<br/>request every changed route<br/>and the canary through Traefik"]:::step
+  v7["7 commit<br/>hard-link lkg-N.json, drop older"]:::ok
+  rb["rollback<br/>restore the last known good file"]:::bad
+  r403["403 rejected: bad signature"]:::bad
+  r422["422 rejected: policy violation"]:::bad
+  r409["409 replay or same version<br/>(same hash: acknowledged, no-op)"]:::bad
+  ack(["200 ack: live_version N"]):::ok
+
+  in --> v1
+  v1 -- "invalid" --> r403
+  v1 --> replay
+  replay -- "no" --> r409
+  replay -- "yes" --> v2
+  v2 -- "violation" --> r422
+  v2 --> v3 --> v4 --> v5 --> v6
+  v5 -- "timeout" --> rb
+  v6 -- "any probe fails" --> rb
+  v6 -- "all pass" --> v7 --> ack
+  rb --> r422

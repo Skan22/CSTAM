@@ -1,0 +1,21 @@
+sequenceDiagram
+  autonumber
+  participant U as Team / admin
+  participant API as API (one transaction)
+  participant W as Saga worker
+  participant OS as OpenStack
+  participant CC as Compiler
+  participant G as Both gateways
+  U->>API: POST /v1/teams {slug} + Idempotency-Key
+  Note over API: guard the reserve of free IPs, insert the team,<br/>claim a pooled lease (warm) or reserve a free one (cold),<br/>insert the job. All or nothing
+  API-->>U: 202 job_id, ip, path, subdomain
+  W->>W: claim (done in the request, so it only contributes the undo)
+  W->>OS: provision: cold path only, boot a VM on the fixed IP
+  W->>OS: personalize: set ipo.team and ipo.slug metadata on the VM
+  W->>W: route: insert the route row, NOTIFY ipo_routes_changed
+  CC->>G: signed config containing the host (both gateways)
+  G-->>W: converge: both acked a version with the host
+  W->>G: probe: request the host through the VIP until it answers
+  W->>W: activate: team ACTIVE, audit entry, event
+  W-->>U: job succeeded (GET /v1/jobs/id)
+  Note over W: after 3 failed attempts of a step, every started step is undone in reverse and the team is FAILED.<br/>A job whose worker died is resumed by another worker.

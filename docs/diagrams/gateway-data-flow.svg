@@ -1,0 +1,207 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="1200" viewBox="0 0 1720 1200" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15">
+<defs><marker id="a-req" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#2f6fdd"/></marker><marker id="a-cfg" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#7a4fd6"/></marker><marker id="a-sig" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#c98a00"/></marker><marker id="a-tel" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#1a9c8b"/></marker><marker id="a-store" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#777"/></marker><marker id="a-ext" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#555"/></marker><marker id="a-bad" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#c24141"/></marker><marker id="a-ok" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#2f9e55"/></marker></defs>
+<rect width="1720" height="1200" fill="#fff"/>
+<text x="30" y="36" font-size="26" font-weight="700" fill="#1c1c3a">Gateway data flow</text><text x="30" y="60" font-size="14" fill="#555">What moves through a gateway, and where it comes from: requests, configuration, and the signals and telemetry that flow back. gw-b runs the identical stack as the VRRP BACKUP.</text>
+<rect x="20" y="80" width="1680" height="290" rx="14" fill="#e8f1ff" fill-opacity="0.35" stroke="#2f6fdd" stroke-width="1.4"/>
+<text x="40" y="108" font-size="18" font-weight="700" fill="#10294d">1  Request path</text><text x="40" y="128" font-size="13" fill="#10294d">a visitor reaching a team's sandbox, through whichever gateway holds the VIP</text>
+<rect x="50" y="150" width="200" height="84" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.6"/>
+<text x="150.0" y="172.0" text-anchor="middle" font-weight="700" fill="#222">Visitor</text>
+<text x="150.0" y="192.0" text-anchor="middle" font-size="13" fill="#222">GET /</text>
+<text x="150.0" y="212.0" text-anchor="middle" font-size="13" fill="#222">Host: alpha.cstam.felcloud.tn</text>
+<rect x="372" y="150" width="200" height="84" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="472.0" y="172.0" text-anchor="middle" font-weight="700" fill="#10294d">Floating IP</text>
+<text x="472.0" y="192.0" text-anchor="middle" font-size="13" fill="#10294d">Neutron DNAT</text>
+<text x="472.0" y="212.0" text-anchor="middle" font-size="13" fill="#10294d">to the VIP</text>
+<rect x="695" y="150" width="230" height="84" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="810.0" y="172.0" text-anchor="middle" font-weight="700" fill="#10294d">VIP 10.0.0.100</text>
+<text x="810.0" y="192.0" text-anchor="middle" font-size="13" fill="#10294d">held by the VRRP MASTER</text>
+<text x="810.0" y="212.0" text-anchor="middle" font-size="13" fill="#10294d">(an allowed address pair)</text>
+<rect x="1048" y="150" width="270" height="84" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="1183.0" y="172.0" text-anchor="middle" font-weight="700" fill="#10294d">Traefik on the MASTER</text>
+<text x="1183.0" y="192.0" text-anchor="middle" font-size="13" fill="#10294d">entrypoint :80, one router per Host,</text>
+<text x="1183.0" y="212.0" text-anchor="middle" font-size="13" fill="#10294d">optional middlewares</text>
+<rect x="1440" y="150" width="230" height="84" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="1555.0" y="172.0" text-anchor="middle" font-weight="700" fill="#10294d">Team sandbox VM</text>
+<text x="1555.0" y="192.0" text-anchor="middle" font-size="13" fill="#10294d">10.20.0.x : 80</text>
+<text x="1555.0" y="212.0" text-anchor="middle" font-size="13" fill="#10294d">fixed IP from the lease</text>
+<path d="M252,192.0 L370,192.0" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<circle cx="311.0" cy="192.0" r="11" fill="#2f6fdd"/><text x="311.0" y="196.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+<text x="311.0" y="170.0" text-anchor="middle" font-size="12.5" fill="#10294d">HTTP</text>
+<path d="M574,192.0 L693,192.0" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<circle cx="633.5" cy="192.0" r="11" fill="#2f6fdd"/><text x="633.5" y="196.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+<path d="M927,192.0 L1046,192.0" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<circle cx="986.5" cy="192.0" r="11" fill="#2f6fdd"/><text x="986.5" y="196.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">3</text>
+<text x="986.5" y="170.0" text-anchor="middle" font-size="12.5" fill="#10294d">MASTER only</text>
+<path d="M1320,192.0 L1438,192.0" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<circle cx="1379.0" cy="192.0" r="11" fill="#2f6fdd"/><text x="1379.0" y="196.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">4</text>
+<text x="1379.0" y="170.0" text-anchor="middle" font-size="12.5" fill="#10294d">forward</text>
+<path d="M1438,212 L1320,212" fill="none" stroke="#2f6fdd" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#a-req)"/>
+<circle cx="1379.0" cy="212.0" r="11" fill="#2f6fdd"/><text x="1379.0" y="216.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">5</text>
+<text x="1379.0" y="234.0" text-anchor="middle" font-size="12.5" fill="#10294d">response</text>
+<path d="M1068,290 a115.0,10 0 0 1 230,0 v40 a115.0,10 0 0 1 -230,0 z" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/><path d="M1068,290 a115.0,10 0 0 0 230,0" fill="none" stroke="#777"/>
+<text x="1183.0" y="305.0" text-anchor="middle" font-weight="700" fill="#222">access.log</text>
+<text x="1183.0" y="325.0" text-anchor="middle" font-size="13" fill="#222">one JSON line per request</text>
+<path d="M1183,236 L1183,280" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<circle cx="1183.0" cy="258.0" r="11" fill="#1a9c8b"/><text x="1183.0" y="262.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">6</text>
+<text x="1318" y="314" font-size="13" fill="#08413a">tailed by ipo-agent, see lane 3</text>
+<rect x="20" y="390" width="1680" height="440" rx="14" fill="#f1eaff" fill-opacity="0.35" stroke="#7a4fd6" stroke-width="1.4"/>
+<text x="40" y="418" font-size="18" font-weight="700" fill="#2a1457">2  Configuration path</text><text x="40" y="438" font-size="13" fill="#2a1457">a route added or removed reaches both gateways as a signed, verified, probed config version</text>
+<rect x="50" y="445" width="220" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="160.0" y="467.0" text-anchor="middle" font-weight="700" fill="#2a1457">Saga or admin</text>
+<text x="160.0" y="487.0" text-anchor="middle" font-size="13" fill="#2a1457">register, teardown,</text>
+<text x="160.0" y="507.0" text-anchor="middle" font-size="13" fill="#2a1457">rollback</text>
+<rect x="480" y="445" width="250" height="84" rx="10" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/>
+<text x="605.0" y="467.0" text-anchor="middle" font-weight="700" fill="#222">routes table</text>
+<text x="605.0" y="487.0" text-anchor="middle" font-size="13" fill="#222">PostgreSQL, NOTIFY</text>
+<text x="605.0" y="507.0" text-anchor="middle" font-size="13" fill="#222">ipo_routes_changed</text>
+<rect x="940" y="445" width="260" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1070.0" y="467.0" text-anchor="middle" font-weight="700" fill="#2a1457">Config compiler</text>
+<text x="1070.0" y="487.0" text-anchor="middle" font-size="13" fill="#2a1457">render Traefik config,</text>
+<text x="1070.0" y="507.0" text-anchor="middle" font-size="13" fill="#2a1457">SHA-256, Ed25519 sign</text>
+<rect x="1410" y="445" width="260" height="84" rx="10" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/>
+<text x="1540.0" y="467.0" text-anchor="middle" font-weight="700" fill="#222">config_versions</text>
+<text x="1540.0" y="487.0" text-anchor="middle" font-size="13" fill="#222">signed history; a rollback</text>
+<text x="1540.0" y="507.0" text-anchor="middle" font-size="13" fill="#222">pins an earlier body</text>
+<path d="M272,487.0 L478,487.0" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<circle cx="375.0" cy="487.0" r="11" fill="#7a4fd6"/><text x="375.0" y="491.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">A</text>
+<text x="375.0" y="465.0" text-anchor="middle" font-size="12.5" fill="#2a1457">route row</text>
+<path d="M732,487.0 L938,487.0" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<circle cx="835.0" cy="487.0" r="11" fill="#7a4fd6"/><text x="835.0" y="491.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">B</text>
+<text x="835.0" y="465.0" text-anchor="middle" font-size="12.5" fill="#2a1457">debounced</text>
+<path d="M1202,487.0 L1408,487.0" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<text x="1305.0" y="465.0" text-anchor="middle" font-size="12.5" fill="#2a1457">store version N</text>
+<rect x="50" y="568" width="1620" height="150" rx="12" fill="#fff" stroke="#7a4fd6" stroke-width="1.6" stroke-dasharray="6 4"/><text x="64" y="590" font-weight="700" fill="#2a1457">ipo-agent: the config pipeline, the only way a config reaches Traefik (runs on both gateways)</text>
+<path d="M1070.0,531 L1070.0,568" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<circle cx="1070.0" cy="549.5" r="11" fill="#7a4fd6"/><text x="1070.0" y="554.0" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">C</text>
+<text x="1094.0" y="552" font-size="12.5" fill="#2a1457">PUT /config over mTLS to both agents, or their 5 s pull</text>
+<rect x="64" y="610" width="205" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="166.5" y="632.0" text-anchor="middle" font-weight="700" fill="#2a1457">1  verify</text>
+<text x="166.5" y="652.0" text-anchor="middle" font-size="13" fill="#2a1457">Ed25519 over version,</text>
+<text x="166.5" y="672.0" text-anchor="middle" font-size="13" fill="#2a1457">hash and body</text>
+<rect x="283" y="610" width="205" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="385.5" y="632.0" text-anchor="middle" font-weight="700" fill="#2a1457">2  validate</text>
+<text x="385.5" y="652.0" text-anchor="middle" font-size="13" fill="#2a1457">shape, unique Hosts,</text>
+<text x="385.5" y="672.0" text-anchor="middle" font-size="13" fill="#2a1457">backends in sandbox CIDR</text>
+<path d="M270,652 L282,652" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<rect x="502" y="610" width="205" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="604.5" y="632.0" text-anchor="middle" font-weight="700" fill="#2a1457">3  stage</text>
+<text x="604.5" y="652.0" text-anchor="middle" font-size="13" fill="#2a1457">write and fsync</text>
+<text x="604.5" y="672.0" text-anchor="middle" font-size="13" fill="#2a1457">staging.json</text>
+<path d="M489,652 L501,652" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<rect x="721" y="610" width="205" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="823.5" y="632.0" text-anchor="middle" font-weight="700" fill="#2a1457">4  swap</text>
+<text x="823.5" y="652.0" text-anchor="middle" font-size="13" fill="#2a1457">atomic rename</text>
+<text x="823.5" y="672.0" text-anchor="middle" font-size="13" fill="#2a1457">onto live.yml</text>
+<path d="M708,652 L720,652" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<rect x="940" y="610" width="205" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1042.5" y="632.0" text-anchor="middle" font-weight="700" fill="#2a1457">5  converge</text>
+<text x="1042.5" y="652.0" text-anchor="middle" font-size="13" fill="#2a1457">Traefik API lists</text>
+<text x="1042.5" y="672.0" text-anchor="middle" font-size="13" fill="#2a1457">the new routers</text>
+<path d="M927,652 L939,652" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<rect x="1159" y="610" width="205" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1261.5" y="632.0" text-anchor="middle" font-weight="700" fill="#2a1457">6  probe</text>
+<text x="1261.5" y="652.0" text-anchor="middle" font-size="13" fill="#2a1457">request each changed</text>
+<text x="1261.5" y="672.0" text-anchor="middle" font-size="13" fill="#2a1457">route and the canary</text>
+<path d="M1146,652 L1158,652" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<rect x="1378" y="610" width="205" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1480.5" y="632.0" text-anchor="middle" font-weight="700" fill="#2a1457">7  commit</text>
+<text x="1480.5" y="652.0" text-anchor="middle" font-size="13" fill="#2a1457">keep as last</text>
+<text x="1480.5" y="672.0" text-anchor="middle" font-size="13" fill="#2a1457">known good</text>
+<path d="M1365,652 L1377,652" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<path d="M738,750 a85.0,10 0 0 1 170,0 v36 a85.0,10 0 0 1 -170,0 z" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/><path d="M738,750 a85.0,10 0 0 0 170,0" fill="none" stroke="#777"/>
+<text x="823.0" y="763.0" text-anchor="middle" font-weight="700" fill="#222">live.yml</text>
+<text x="823.0" y="783.0" text-anchor="middle" font-size="13" fill="#222">Traefik reloads it</text>
+<path d="M823.5,696 L823.5,740" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<rect x="920" y="740" width="240" height="56" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="1040.0" y="758.0" text-anchor="middle" font-weight="700" fill="#10294d">Traefik reloads, no restart</text>
+<text x="1040.0" y="778.0" text-anchor="middle" font-size="13" fill="#10294d">in-flight requests unaffected</text>
+<path d="M908,768 L920,768" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<rect x="1169" y="740" width="200" height="56" rx="10" fill="#fdeaea" stroke="#c24141" stroke-width="1.6"/>
+<text x="1269.0" y="758.0" text-anchor="middle" font-weight="700" fill="#4d1010">Probe fails or times out</text>
+<text x="1269.0" y="778.0" text-anchor="middle" font-size="13" fill="#4d1010">restore last known good</text>
+<path d="M1271.5,696 L1271.5,740" fill="none" stroke="#c24141" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#a-bad)"/>
+<rect x="1398" y="740" width="190" height="56" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="1493.0" y="758.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">ack: live_version N</text>
+<text x="1493.0" y="778.0" text-anchor="middle" font-size="13" fill="#0f3a1d">per gateway</text>
+<path d="M1490.5,696 L1490.5,740" fill="none" stroke="#2f9e55" stroke-width="2.2" marker-end="url(#a-ok)"/>
+<circle cx="1490.5" cy="718.0" r="11" fill="#2f9e55"/><text x="1490.5" y="722.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">D</text>
+<text x="50" y="768" font-size="13" fill="#2a1457"><tspan font-weight="700">Rejections</tspan> 403 bad signature</text><text x="50" y="788" font-size="13" fill="#2a1457">422 policy violation, 409 replay or older</text>
+<text x="50" y="860" font-size="13" fill="#2a1457"></text>
+<text x="40" y="816" font-size="13" fill="#2a1457"><tspan font-weight="700">Version rules:</tspan> a version goes live only when both gateways ack it; a rejected one is never retried (a transport failure is, with backoff); rollback re-issues an earlier body under a higher number. <tspan font-weight="700">If the control plane is down</tspan> both gateways keep serving the last version they verified.</text>
+<rect x="20" y="850" width="1680" height="330" rx="14" fill="#fff4d6" fill-opacity="0.35" stroke="#c98a00" stroke-width="1.4"/>
+<text x="40" y="878" font-size="18" font-weight="700" fill="#4d3300">3  Signals and telemetry</text><text x="40" y="898" font-size="13" fill="#4d3300">what the gateways report back, and what the control plane does with it</text>
+<text x="40" y="930" font-weight="700" fill="#4d3300">VRRP state and liveness</text>
+<rect x="50" y="942" width="200" height="84" rx="10" fill="#fff4d6" stroke="#c98a00" stroke-width="1.6"/>
+<text x="150.0" y="964.0" text-anchor="middle" font-weight="700" fill="#4d3300">keepalived</text>
+<text x="150.0" y="984.0" text-anchor="middle" font-size="13" fill="#4d3300">VRRP, unicast, nopreempt</text>
+<text x="150.0" y="1004.0" text-anchor="middle" font-size="13" fill="#4d3300">Traefik check, no weight</text>
+<rect x="319" y="942" width="215" height="84" rx="10" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/>
+<text x="426.5" y="964.0" text-anchor="middle" font-weight="700" fill="#222">/run/ipo/vrrp_state</text>
+<text x="426.5" y="984.0" text-anchor="middle" font-size="13" fill="#222">written by the notify hook</text>
+<text x="426.5" y="1004.0" text-anchor="middle" font-size="13" fill="#222">on every change</text>
+<rect x="603" y="942" width="215" height="84" rx="10" fill="#fff4d6" stroke="#c98a00" stroke-width="1.6"/>
+<text x="710.5" y="964.0" text-anchor="middle" font-weight="700" fill="#4d3300">ipo-agent heartbeat</text>
+<text x="710.5" y="984.0" text-anchor="middle" font-size="13" fill="#4d3300">every 5 s: VRRP state</text>
+<text x="710.5" y="1004.0" text-anchor="middle" font-size="13" fill="#4d3300">and live config version</text>
+<rect x="887" y="942" width="215" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="994.5" y="964.0" text-anchor="middle" font-weight="700" fill="#2a1457">POST .../heartbeat</text>
+<text x="994.5" y="984.0" text-anchor="middle" font-size="13" fill="#2a1457">mTLS, operator role</text>
+<text x="994.5" y="1004.0" text-anchor="middle" font-size="13" fill="#2a1457"></text>
+<rect x="1171" y="942" width="215" height="84" rx="10" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/>
+<text x="1278.5" y="964.0" text-anchor="middle" font-weight="700" fill="#222">gateway_status</text>
+<text x="1278.5" y="984.0" text-anchor="middle" font-size="13" fill="#222">one row per gateway:</text>
+<text x="1278.5" y="1004.0" text-anchor="middle" font-size="13" fill="#222">vrrp_since, last_heartbeat</text>
+<rect x="1455" y="942" width="215" height="84" rx="10" fill="#fdeaea" stroke="#c24141" stroke-width="1.6"/>
+<text x="1562.5" y="964.0" text-anchor="middle" font-weight="700" fill="#4d1010">Split-brain check</text>
+<text x="1562.5" y="984.0" text-anchor="middle" font-size="13" fill="#4d1010">two fresh MASTERs after the</text>
+<text x="1562.5" y="1004.0" text-anchor="middle" font-size="13" fill="#4d1010">newest promotion = alarm</text>
+<path d="M252,984.0 L317,984.0" fill="none" stroke="#c98a00" stroke-width="2.2" marker-end="url(#a-sig)"/>
+<circle cx="284.5" cy="984.0" r="11" fill="#c98a00"/><text x="284.5" y="988.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">I</text>
+<text x="284.5" y="962.0" text-anchor="middle" font-size="12.5" fill="#4d3300">notify</text>
+<path d="M536,984.0 L601,984.0" fill="none" stroke="#c98a00" stroke-width="2.2" marker-end="url(#a-sig)"/>
+<circle cx="568.5" cy="984.0" r="11" fill="#c98a00"/><text x="568.5" y="988.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">J</text>
+<text x="568.5" y="962.0" text-anchor="middle" font-size="12.5" fill="#4d3300">read</text>
+<path d="M820,984.0 L885,984.0" fill="none" stroke="#c98a00" stroke-width="2.2" marker-end="url(#a-sig)"/>
+<circle cx="852.5" cy="984.0" r="11" fill="#c98a00"/><text x="852.5" y="988.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">K</text>
+<path d="M1104,984.0 L1169,984.0" fill="none" stroke="#c98a00" stroke-width="2.2" marker-end="url(#a-sig)"/>
+<circle cx="1136.5" cy="984.0" r="11" fill="#c98a00"/><text x="1136.5" y="988.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">L</text>
+<text x="1136.5" y="962.0" text-anchor="middle" font-size="12.5" fill="#4d3300">upsert</text>
+<path d="M1388,984.0 L1453,984.0" fill="none" stroke="#c98a00" stroke-width="2.2" marker-end="url(#a-sig)"/>
+<text x="40" y="1066" font-weight="700" fill="#08413a">Traffic and metrics</text>
+<rect x="50" y="1078" width="200" height="84" rx="10" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/>
+<text x="150.0" y="1100.0" text-anchor="middle" font-weight="700" fill="#222">access.log</text>
+<text x="150.0" y="1120.0" text-anchor="middle" font-size="13" fill="#222">Traefik JSON: host, status,</text>
+<text x="150.0" y="1140.0" text-anchor="middle" font-size="13" fill="#222">bytes, duration</text>
+<rect x="319" y="1078" width="215" height="84" rx="10" fill="#e0f7f4" stroke="#1a9c8b" stroke-width="1.6"/>
+<text x="426.5" y="1100.0" text-anchor="middle" font-weight="700" fill="#08413a">ipo-agent reporter</text>
+<text x="426.5" y="1120.0" text-anchor="middle" font-size="13" fill="#08413a">counts per host for 10 s;</text>
+<text x="426.5" y="1140.0" text-anchor="middle" font-size="13" fill="#08413a">no IPs, no query strings</text>
+<rect x="603" y="1078" width="215" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="710.5" y="1100.0" text-anchor="middle" font-weight="700" fill="#2a1457">POST .../traffic</text>
+<text x="710.5" y="1120.0" text-anchor="middle" font-size="13" fill="#2a1457">only hosts that have</text>
+<text x="710.5" y="1140.0" text-anchor="middle" font-size="13" fill="#2a1457">a route are kept</text>
+<rect x="887" y="1078" width="215" height="84" rx="10" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/>
+<text x="994.5" y="1100.0" text-anchor="middle" font-weight="700" fill="#222">traffic_buckets</text>
+<text x="994.5" y="1120.0" text-anchor="middle" font-size="13" fill="#222">per-minute buckets and a</text>
+<text x="994.5" y="1140.0" text-anchor="middle" font-size="13" fill="#222">recent-requests ring</text>
+<rect x="1171" y="1078" width="215" height="84" rx="10" fill="#e0f7f4" stroke="#1a9c8b" stroke-width="1.6"/>
+<text x="1278.5" y="1100.0" text-anchor="middle" font-weight="700" fill="#08413a">/metrics at scrape</text>
+<text x="1278.5" y="1120.0" text-anchor="middle" font-size="13" fill="#08413a">ipo_team_requests_5m,</text>
+<text x="1278.5" y="1140.0" text-anchor="middle" font-size="13" fill="#08413a">ipo_gateway_masters ...</text>
+<rect x="1455" y="1078" width="215" height="84" rx="10" fill="#e0f7f4" stroke="#1a9c8b" stroke-width="1.6"/>
+<text x="1562.5" y="1100.0" text-anchor="middle" font-weight="700" fill="#08413a">Prometheus</text>
+<text x="1562.5" y="1120.0" text-anchor="middle" font-size="13" fill="#08413a">Grafana panels, dashboard,</text>
+<text x="1562.5" y="1140.0" text-anchor="middle" font-size="13" fill="#08413a">alert rules</text>
+<path d="M252,1120.0 L317,1120.0" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<circle cx="284.5" cy="1120.0" r="11" fill="#1a9c8b"/><text x="284.5" y="1124.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">M</text>
+<text x="284.5" y="1098.0" text-anchor="middle" font-size="12.5" fill="#08413a">tail</text>
+<path d="M536,1120.0 L601,1120.0" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<circle cx="568.5" cy="1120.0" r="11" fill="#1a9c8b"/><text x="568.5" y="1124.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">N</text>
+<text x="568.5" y="1098.0" text-anchor="middle" font-size="12.5" fill="#08413a">batch</text>
+<path d="M820,1120.0 L885,1120.0" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<circle cx="852.5" cy="1120.0" r="11" fill="#1a9c8b"/><text x="852.5" y="1124.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">O</text>
+<path d="M1104,1120.0 L1169,1120.0" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<circle cx="1136.5" cy="1120.0" r="11" fill="#1a9c8b"/><text x="1136.5" y="1124.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">P</text>
+<text x="1136.5" y="1098.0" text-anchor="middle" font-size="12.5" fill="#08413a">gauges</text>
+<path d="M1388,1120.0 L1453,1120.0" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+</svg>

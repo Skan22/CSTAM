@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="1180" viewBox="0 0 1720 1180" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15">
+<defs><marker id="a-req" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#2f6fdd"/></marker><marker id="a-cfg" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#7a4fd6"/></marker><marker id="a-sig" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#c98a00"/></marker><marker id="a-tel" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#1a9c8b"/></marker><marker id="a-store" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#777"/></marker><marker id="a-ext" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#555"/></marker><marker id="a-bad" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#c24141"/></marker><marker id="a-ok" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#2f9e55"/></marker></defs>
+<rect width="1720" height="1180" fill="#fff"/>
+<text x="30" y="36" font-size="26" font-weight="700" fill="#1c1c3a">OpenStack high availability</text><text x="30" y="60" font-size="14" fill="#555">One floating IP and one VIP port; two gateways that can each hold the VIP; everything the failover needs from Neutron and Nova, and what is redundant elsewhere.</text>
+<rect x="20" y="80" width="830" height="560" rx="14" fill="#e8f1ff" fill-opacity="0.35" stroke="#2f6fdd" stroke-width="1.4"/>
+<text x="36" y="106" font-size="17" text-anchor="start" fill="#10294d" font-weight="700">Normal</text>
+<text x="36" y="126" font-size="12.5" text-anchor="start" fill="#10294d">gw-a is the MASTER, gw-b is hot standby</text>
+<rect x="265" y="140" width="340" height="56" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.6"/>
+<text x="435.0" y="158.0" text-anchor="middle" font-weight="700" fill="#222">Visitors</text>
+<text x="435.0" y="178.0" text-anchor="middle" font-size="13" fill="#222">HTTP(S) to the platform's public name</text>
+<rect x="265" y="226" width="340" height="64" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="435.0" y="248.0" text-anchor="middle" font-weight="700" fill="#10294d">Floating IP</text>
+<text x="435.0" y="268.0" text-anchor="middle" font-size="13" fill="#10294d">attached to the vip-edge port, not to a VM</text>
+<rect x="265" y="320" width="340" height="70" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="435.0" y="345.0" text-anchor="middle" font-weight="700" fill="#10294d">vip-edge port 10.0.0.100</text>
+<text x="435.0" y="365.0" text-anchor="middle" font-size="13" fill="#10294d">no device: reserved, so nothing else can take it</text>
+<path d="M435,196 L435,226" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<path d="M435,290 L435,320" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<rect x="50" y="420" width="390" height="195" rx="14" fill="#ffffff" fill-opacity="0.35" stroke="#555" stroke-width="1.4"/>
+<text x="66" y="446" font-size="17" text-anchor="start" fill="#222" font-weight="700">compute host A</text>
+<rect x="60" y="470" width="370" height="120" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="245.0" y="500.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">gw-a   MASTER</text>
+<text x="245.0" y="520.0" text-anchor="middle" font-size="13" fill="#0f3a1d">holds the VIP</text>
+<text x="245.0" y="540.0" text-anchor="middle" font-size="13" fill="#0f3a1d">Traefik serving, adverts every 0.2 s</text>
+<text x="245.0" y="560.0" text-anchor="middle" font-size="13" fill="#0f3a1d">edge port: allowed_address_pairs = VIP</text>
+<rect x="450" y="420" width="390" height="195" rx="14" fill="#ffffff" fill-opacity="0.35" stroke="#555" stroke-width="1.4"/>
+<text x="466" y="446" font-size="17" text-anchor="start" fill="#222" font-weight="700">compute host B, if the cloud has one</text>
+<rect x="460" y="470" width="370" height="120" rx="10" fill="#fff4d6" stroke="#c98a00" stroke-width="1.6"/>
+<text x="645.0" y="500.0" text-anchor="middle" font-weight="700" fill="#4d3300">gw-b   BACKUP</text>
+<text x="645.0" y="520.0" text-anchor="middle" font-size="13" fill="#4d3300">listens for adverts</text>
+<text x="645.0" y="540.0" text-anchor="middle" font-size="13" fill="#4d3300">Traefik loaded, routes identical</text>
+<text x="645.0" y="560.0" text-anchor="middle" font-size="13" fill="#4d3300">edge port: allowed_address_pairs = VIP</text>
+<path d="M345,390 L245,470" fill="none" stroke="#2f9e55" stroke-width="2.2" marker-end="url(#a-ok)"/>
+<path d="M430,520 L460,520" fill="none" stroke="#c98a00" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#a-sig)"/>
+<text x="435" y="662" font-size="13" text-anchor="start" fill="#222"></text>
+<rect x="870" y="80" width="830" height="560" rx="14" fill="#fdeaea" fill-opacity="0.35" stroke="#c24141" stroke-width="1.4"/>
+<text x="886" y="106" font-size="17" text-anchor="start" fill="#4d1010" font-weight="700">After losing gw-a's VM</text>
+<text x="886" y="126" font-size="12.5" text-anchor="start" fill="#4d1010">gw-b takes the VIP; clients reconnect to the same address</text>
+<rect x="1115" y="140" width="340" height="56" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.6"/>
+<text x="1285.0" y="158.0" text-anchor="middle" font-weight="700" fill="#222">Visitors</text>
+<text x="1285.0" y="178.0" text-anchor="middle" font-size="13" fill="#222">HTTP(S) to the platform's public name</text>
+<rect x="1115" y="226" width="340" height="64" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="1285.0" y="248.0" text-anchor="middle" font-weight="700" fill="#10294d">Floating IP</text>
+<text x="1285.0" y="268.0" text-anchor="middle" font-size="13" fill="#10294d">attached to the vip-edge port, not to a VM</text>
+<rect x="1115" y="320" width="340" height="70" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="1285.0" y="345.0" text-anchor="middle" font-weight="700" fill="#10294d">vip-edge port 10.0.0.100</text>
+<text x="1285.0" y="365.0" text-anchor="middle" font-size="13" fill="#10294d">no device: reserved, so nothing else can take it</text>
+<path d="M1285,196 L1285,226" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<path d="M1285,290 L1285,320" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<rect x="900" y="420" width="390" height="195" rx="14" fill="#ffffff" fill-opacity="0.35" stroke="#555" stroke-width="1.4"/>
+<text x="916" y="446" font-size="17" text-anchor="start" fill="#222" font-weight="700">compute host A</text>
+<rect x="910" y="470" width="370" height="120" rx="10" fill="#fdeaea" stroke="#c24141" stroke-width="1.6"/>
+<text x="1095.0" y="500.0" text-anchor="middle" font-weight="700" fill="#4d1010">gw-a   LOST</text>
+<text x="1095.0" y="520.0" text-anchor="middle" font-size="13" fill="#4d1010">VM gone: processes dead,</text>
+<text x="1095.0" y="540.0" text-anchor="middle" font-size="13" fill="#4d1010">NICs dark, adverts stop</text>
+<text x="1095.0" y="560.0" text-anchor="middle" font-size="13" fill="#4d1010">edge port: allowed_address_pairs = VIP</text>
+<rect x="1300" y="420" width="390" height="195" rx="14" fill="#ffffff" fill-opacity="0.35" stroke="#555" stroke-width="1.4"/>
+<text x="1316" y="446" font-size="17" text-anchor="start" fill="#222" font-weight="700">compute host B, if the cloud has one</text>
+<rect x="1310" y="470" width="370" height="120" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="1495.0" y="500.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">gw-b   MASTER</text>
+<text x="1495.0" y="520.0" text-anchor="middle" font-size="13" fill="#0f3a1d">holds the VIP</text>
+<text x="1495.0" y="540.0" text-anchor="middle" font-size="13" fill="#0f3a1d">Traefik serving, adverts every 0.2 s</text>
+<text x="1495.0" y="560.0" text-anchor="middle" font-size="13" fill="#0f3a1d">edge port: allowed_address_pairs = VIP</text>
+<path d="M1375,390 L1495,470" fill="none" stroke="#2f9e55" stroke-width="2.2" marker-end="url(#a-ok)"/>
+<text x="36" y="664" font-size="12.5" text-anchor="start" fill="#4d3300">VRRP adverts, unicast, every 0.2 s, gw-a to gw-b (dashed)</text>
+<text x="886" y="664" font-size="12.5" text-anchor="start" fill="#4d1010">t+0 gw-a dies; about 0.6 s later gw-b misses three adverts, becomes MASTER, adds the VIP, sends gratuitous ARPs</text>
+<text x="886" y="684" font-size="12.5" text-anchor="start" fill="#4d1010">Measured under 50 new connections/s: worst gap 0.52 to 0.66 s over 11 VM-death runs (Traefik crash: 1.2 to 1.7 s; keepalived stop: 0.12 s).</text>
+<rect x="20" y="706" width="1680" height="190" rx="14" fill="#f1eaff" fill-opacity="0.35" stroke="#7a4fd6" stroke-width="1.4"/>
+<text x="36" y="732" font-size="17" text-anchor="start" fill="#2a1457" font-weight="700">What the handover needs from OpenStack</text>
+<rect x="40" y="760" width="310" height="104" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="195.0" y="792.0" text-anchor="middle" font-weight="700" fill="#2a1457">Allowed address pair</text>
+<text x="195.0" y="812.0" text-anchor="middle" font-size="13" fill="#2a1457">Both gateways' edge ports list the VIP, so</text>
+<text x="195.0" y="832.0" text-anchor="middle" font-size="13" fill="#2a1457">port security lets them send and receive it</text>
+<rect x="370" y="760" width="310" height="104" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="525.0" y="792.0" text-anchor="middle" font-weight="700" fill="#2a1457">A device-less VIP port</text>
+<text x="525.0" y="812.0" text-anchor="middle" font-size="13" fill="#2a1457">Holds 10.0.0.100 and the floating IP, so</text>
+<text x="525.0" y="832.0" text-anchor="middle" font-size="13" fill="#2a1457">the address survives either VM</text>
+<rect x="700" y="760" width="310" height="104" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="855.0" y="792.0" text-anchor="middle" font-weight="700" fill="#2a1457">Unicast VRRP</text>
+<text x="855.0" y="812.0" text-anchor="middle" font-size="13" fill="#2a1457">Multicast is often filtered on Neutron; the</text>
+<text x="855.0" y="832.0" text-anchor="middle" font-size="13" fill="#2a1457">security group admits VRRP between gateways</text>
+<rect x="1030" y="760" width="310" height="104" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1185.0" y="792.0" text-anchor="middle" font-weight="700" fill="#2a1457">FAULT releases at once</text>
+<text x="1185.0" y="812.0" text-anchor="middle" font-size="13" fill="#2a1457">Check script with no weight: two failed checks</text>
+<text x="1185.0" y="832.0" text-anchor="middle" font-size="13" fill="#2a1457">= FAULT = priority-0 advert, no wait</text>
+<rect x="1360" y="760" width="310" height="104" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1515.0" y="792.0" text-anchor="middle" font-weight="700" fill="#2a1457">nopreempt</text>
+<text x="1515.0" y="812.0" text-anchor="middle" font-size="13" fill="#2a1457">The old MASTER returns as BACKUP,</text>
+<text x="1515.0" y="832.0" text-anchor="middle" font-size="13" fill="#2a1457">so a recovery is not a second outage</text>
+<rect x="20" y="916" width="1680" height="232" rx="14" fill="#e8f8ec" fill-opacity="0.35" stroke="#2f9e55" stroke-width="1.4"/>
+<text x="36" y="942" font-size="17" text-anchor="start" fill="#0f3a1d" font-weight="700">What is redundant, and what is not</text>
+<text x="36" y="962" font-size="12.5" text-anchor="start" fill="#0f3a1d">verified in the namespace lab with the real software; not yet on real OpenStack VMs</text>
+<rect x="40" y="974" width="262" height="150" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="171.0" y="1019.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">Gateways</text>
+<text x="171.0" y="1039.0" text-anchor="middle" font-size="13" fill="#0f3a1d">VRRP pair, anti-affinity</text>
+<text x="171.0" y="1059.0" text-anchor="middle" font-size="13" fill="#0f3a1d">(soft: see the HA document)</text>
+<text x="171.0" y="1079.0" text-anchor="middle" font-size="13" fill="#0f3a1d">loss: about 0.6 s</text>
+<rect x="315" y="974" width="262" height="150" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="446.0" y="1019.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">Control plane</text>
+<text x="446.0" y="1039.0" text-anchor="middle" font-size="13" fill="#0f3a1d">two active replicas, leaders</text>
+<text x="446.0" y="1059.0" text-anchor="middle" font-size="13" fill="#0f3a1d">by advisory lock; gateways</text>
+<text x="446.0" y="1079.0" text-anchor="middle" font-size="13" fill="#0f3a1d">serve without it</text>
+<rect x="590" y="974" width="262" height="150" rx="10" fill="#fff4d6" stroke="#c98a00" stroke-width="1.6"/>
+<text x="721.0" y="1019.0" text-anchor="middle" font-weight="700" fill="#4d3300">PostgreSQL</text>
+<text x="721.0" y="1039.0" text-anchor="middle" font-size="13" fill="#4d3300">streaming replica on cp-2;</text>
+<text x="721.0" y="1059.0" text-anchor="middle" font-size="13" fill="#4d3300">promote_replica.yml is manual;</text>
+<text x="721.0" y="1079.0" text-anchor="middle" font-size="13" fill="#4d3300">writes pause meanwhile</text>
+<rect x="865" y="974" width="262" height="150" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="996.0" y="1019.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">ipo-agent</text>
+<text x="996.0" y="1039.0" text-anchor="middle" font-size="13" fill="#0f3a1d">last-known-good config kept;</text>
+<text x="996.0" y="1059.0" text-anchor="middle" font-size="13" fill="#0f3a1d">restart resumes it;</text>
+<text x="996.0" y="1079.0" text-anchor="middle" font-size="13" fill="#0f3a1d">systemd restarts it</text>
+<rect x="1140" y="974" width="262" height="150" rx="10" fill="#fff4d6" stroke="#c98a00" stroke-width="1.6"/>
+<text x="1271.0" y="1019.0" text-anchor="middle" font-weight="700" fill="#4d3300">Sandbox VM</text>
+<text x="1271.0" y="1039.0" text-anchor="middle" font-size="13" fill="#4d3300">one team's outage only;</text>
+<text x="1271.0" y="1059.0" text-anchor="middle" font-size="13" fill="#4d3300">reconciler repairs drift;</text>
+<text x="1271.0" y="1079.0" text-anchor="middle" font-size="13" fill="#4d3300">warm pool refills</text>
+<rect x="1415" y="974" width="262" height="150" rx="10" fill="#fdeaea" stroke="#c24141" stroke-width="1.6"/>
+<text x="1546.0" y="1019.0" text-anchor="middle" font-weight="700" fill="#4d1010">CA, observability</text>
+<text x="1546.0" y="1039.0" text-anchor="middle" font-size="13" fill="#4d1010">single instance each:</text>
+<text x="1546.0" y="1059.0" text-anchor="middle" font-size="13" fill="#4d1010">24 h certificates give a</text>
+<text x="1546.0" y="1079.0" text-anchor="middle" font-size="13" fill="#4d1010">window; not redundant</text>
+</svg>

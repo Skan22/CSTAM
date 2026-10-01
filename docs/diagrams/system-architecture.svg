@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="1150" viewBox="0 0 1720 1150" font-family="Inter, Helvetica, Arial, sans-serif" font-size="15">
+<defs><marker id="a-req" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#2f6fdd"/></marker><marker id="a-cfg" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#7a4fd6"/></marker><marker id="a-sig" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#c98a00"/></marker><marker id="a-tel" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#1a9c8b"/></marker><marker id="a-store" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#777"/></marker><marker id="a-ext" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#555"/></marker><marker id="a-bad" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#c24141"/></marker><marker id="a-ok" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#2f9e55"/></marker></defs>
+<rect width="1720" height="1150" fill="#fff"/>
+<text x="30" y="36" font-size="26" font-weight="700" fill="#1c1c3a">System architecture</text><text x="30" y="60" font-size="14" fill="#555">The Resilient IP Optimizer on FelCloud OpenStack: one floating IP, a VRRP gateway pair, a control plane that provisions and routes, and the isolated sandbox VMs behind them.</text>
+<rect x="670" y="84" width="340" height="58" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.6"/>
+<text x="840.0" y="103.0" text-anchor="middle" font-weight="700" fill="#222">Teams and visitors</text>
+<text x="840.0" y="123.0" text-anchor="middle" font-size="13" fill="#222">https://team.cstam.felcloud.tn</text>
+<rect x="1290" y="84" width="330" height="58" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.6"/>
+<text x="1455.0" y="103.0" text-anchor="middle" font-weight="700" fill="#222">Operators</text>
+<text x="1455.0" y="123.0" text-anchor="middle" font-size="13" fill="#222">WireGuard, then SSH or the dashboard</text>
+<rect x="20" y="170" width="1680" height="960" rx="14" fill="#ffffff" fill-opacity="0.35" stroke="#555" stroke-width="1.4"/>
+<text x="36" y="196" font-size="17" text-anchor="start" fill="#222" font-weight="700">FelCloud OpenStack: the team's project, region North-Africa, availability zone TN-Carthage</text>
+<rect x="620" y="215" width="440" height="560" rx="14" fill="#e8f1ff" fill-opacity="0.35" stroke="#2f6fdd" stroke-width="1.4"/>
+<text x="636" y="241" font-size="17" text-anchor="start" fill="#10294d" font-weight="700">edge-net 10.0.0.0/24</text>
+<text x="636" y="261" font-size="12.5" text-anchor="start" fill="#10294d">behind r-edge; gateways also have a leg in each other network</text>
+<rect x="680" y="280" width="320" height="64" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="840.0" y="302.0" text-anchor="middle" font-weight="700" fill="#10294d">VIP 10.0.0.100 + floating IP</text>
+<text x="840.0" y="322.0" text-anchor="middle" font-size="13" fill="#10294d">an address, not a machine: the MASTER holds it</text>
+<rect x="640" y="390" width="400" height="118" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="840.0" y="419.0" text-anchor="middle" font-weight="700" fill="#10294d">gw-a   VRRP MASTER (priority 150)</text>
+<text x="840.0" y="439.0" text-anchor="middle" font-size="13" fill="#10294d">keepalived: VRRP, Traefik health check</text>
+<text x="840.0" y="459.0" text-anchor="middle" font-size="13" fill="#10294d">Traefik: routes by Host, hot-reloaded config</text>
+<text x="840.0" y="479.0" text-anchor="middle" font-size="13" fill="#10294d">ipo-agent: verifies signed config, reports</text>
+<rect x="640" y="590" width="400" height="118" rx="10" fill="#e8f1ff" stroke="#2f6fdd" stroke-width="1.6"/>
+<text x="840.0" y="619.0" text-anchor="middle" font-weight="700" fill="#10294d">gw-b   VRRP BACKUP (priority 100)</text>
+<text x="840.0" y="639.0" text-anchor="middle" font-size="13" fill="#10294d">same stack, same routes, same signed config</text>
+<text x="840.0" y="659.0" text-anchor="middle" font-size="13" fill="#10294d">takes the VIP in about a second when gw-a fails</text>
+<text x="840.0" y="679.0" text-anchor="middle" font-size="13" fill="#10294d">nopreempt: does not hand it back</text>
+<path d="M840,142 L840,280" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<text x="856" y="200" font-size="12.5" text-anchor="start" fill="#10294d">80 / 443</text>
+<path d="M840,344 L840,390" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<path d="M840,508 L840,590" fill="none" stroke="#c98a00" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#a-sig)"/>
+<text x="856" y="556" font-size="12.5" text-anchor="start" fill="#4d3300">VRRP adverts, unicast, every 0.2 s</text>
+<rect x="40" y="215" width="520" height="560" rx="14" fill="#e8f8ec" fill-opacity="0.35" stroke="#2f9e55" stroke-width="1.4"/>
+<text x="56" y="241" font-size="17" text-anchor="start" fill="#0f3a1d" font-weight="700">sandbox-net 10.20.0.0/24</text>
+<text x="56" y="261" font-size="12.5" text-anchor="start" fill="#0f3a1d">DHCP off; Neutron's pool equals the control plane's IPAM range</text>
+<rect x="80" y="290" width="440" height="100" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="300.0" y="320.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">Team sandbox VMs</text>
+<text x="300.0" y="340.0" text-anchor="middle" font-size="13" fill="#0f3a1d">one fixed IP per lease, port security on</text>
+<text x="300.0" y="360.0" text-anchor="middle" font-size="13" fill="#0f3a1d">reachable only from the gateways, on port 80</text>
+<rect x="80" y="450" width="440" height="90" rx="10" fill="#e0f7f4" stroke="#1a9c8b" stroke-width="1.6"/>
+<text x="300.0" y="475.0" text-anchor="middle" font-weight="700" fill="#08413a">Relay</text>
+<text x="300.0" y="495.0" text-anchor="middle" font-size="13" fill="#08413a">OTLP and syslog from sandboxes, per-source rate limits</text>
+<text x="300.0" y="515.0" text-anchor="middle" font-size="13" fill="#08413a">forwards to the observability host</text>
+<rect x="80" y="600" width="440" height="100" rx="10" fill="#e8f8ec" stroke="#2f9e55" stroke-width="1.6"/>
+<text x="300.0" y="630.0" text-anchor="middle" font-weight="700" fill="#0f3a1d">Warm pool</text>
+<text x="300.0" y="650.0" text-anchor="middle" font-size="13" fill="#0f3a1d">booted VMs parked on reserved addresses</text>
+<text x="300.0" y="670.0" text-anchor="middle" font-size="13" fill="#0f3a1d">a registration claims one in seconds</text>
+<path d="M640,449 L600,449 L600,340 L520,340" fill="none" stroke="#2f6fdd" stroke-width="2.2" marker-end="url(#a-req)"/>
+<text x="600.0" y="386.5" text-anchor="middle" font-size="12.5" fill="#10294d">route by Host</text>
+<path d="M300,390 L300,450" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<text x="316" y="424" font-size="12.5" text-anchor="start" fill="#08413a">telemetry</text>
+<rect x="1140" y="215" width="540" height="800" rx="14" fill="#f1eaff" fill-opacity="0.35" stroke="#7a4fd6" stroke-width="1.4"/>
+<text x="1156" y="241" font-size="17" text-anchor="start" fill="#2a1457" font-weight="700">mgmt-net 10.30.0.0/24</text>
+<text x="1156" y="261" font-size="12.5" text-anchor="start" fill="#2a1457">behind r-mgmt; reached by operators only through the bastion</text>
+<rect x="1180" y="275" width="460" height="66" rx="10" fill="#fff4d6" stroke="#c98a00" stroke-width="1.6"/>
+<text x="1410.0" y="298.0" text-anchor="middle" font-weight="700" fill="#4d3300">Bastion</text>
+<text x="1410.0" y="318.0" text-anchor="middle" font-size="13" fill="#4d3300">WireGuard on UDP 51820, the only way in</text>
+<rect x="1170" y="370" width="480" height="230" rx="14" fill="#f1eaff" fill-opacity="0.35" stroke="#7a4fd6" stroke-width="1.4"/>
+<text x="1186" y="396" font-size="17" text-anchor="start" fill="#2a1457" font-weight="700">Control plane: cp-1 and cp-2, both active</text>
+<rect x="1190" y="420" width="440" height="62" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1410.0" y="441.0" text-anchor="middle" font-weight="700" fill="#2a1457">API and dashboard</text>
+<text x="1410.0" y="461.0" text-anchor="middle" font-size="13" fill="#2a1457">FastAPI behind Caddy, one HTTPS origin</text>
+<rect x="1190" y="500" width="440" height="84" rx="10" fill="#f1eaff" stroke="#7a4fd6" stroke-width="1.6"/>
+<text x="1410.0" y="522.0" text-anchor="middle" font-weight="700" fill="#2a1457">Workers and controllers</text>
+<text x="1410.0" y="542.0" text-anchor="middle" font-size="13" fill="#2a1457">sagas, config compiler, pool manager, reaper,</text>
+<text x="1410.0" y="562.0" text-anchor="middle" font-size="13" fill="#2a1457">reconciler; leaders elected with advisory locks</text>
+<rect x="1180" y="620" width="460" height="66" rx="10" fill="#f4f4f4" stroke="#777" stroke-width="1.6"/>
+<text x="1410.0" y="643.0" text-anchor="middle" font-weight="700" fill="#222">PostgreSQL: primary cp-1, replica cp-2</text>
+<text x="1410.0" y="663.0" text-anchor="middle" font-size="13" fill="#222">all state; nightly dumps to object storage</text>
+<rect x="1180" y="702" width="460" height="62" rx="10" fill="#fff4d6" stroke="#c98a00" stroke-width="1.6"/>
+<text x="1410.0" y="723.0" text-anchor="middle" font-weight="700" fill="#4d3300">step-ca on cp-1</text>
+<text x="1410.0" y="743.0" text-anchor="middle" font-size="13" fill="#4d3300">private CA: 24 h host certificates, auto-renewed</text>
+<rect x="1180" y="780" width="460" height="80" rx="10" fill="#e0f7f4" stroke="#1a9c8b" stroke-width="1.6"/>
+<text x="1410.0" y="800.0" text-anchor="middle" font-weight="700" fill="#08413a">Observability on cp-2</text>
+<text x="1410.0" y="820.0" text-anchor="middle" font-size="13" fill="#08413a">Prometheus, Alertmanager, Loki, Tempo, Grafana</text>
+<text x="1410.0" y="840.0" text-anchor="middle" font-size="13" fill="#08413a">(Grafana served under /grafana/ by the same front)</text>
+<rect x="1180" y="890" width="460" height="80" rx="10" fill="#ffffff" stroke="#555" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="1410.0" y="910.0" text-anchor="middle" font-weight="700" fill="#222">OpenStack APIs</text>
+<text x="1410.0" y="930.0" text-anchor="middle" font-size="13" fill="#222">Nova, Neutron, Keystone: create and delete sandbox</text>
+<text x="1410.0" y="950.0" text-anchor="middle" font-size="13" fill="#222">VMs and ports with an application credential</text>
+<path d="M1455,142 L1455,275" fill="none" stroke="#c98a00" stroke-width="2.2" marker-end="url(#a-sig)"/>
+<text x="1455.0" y="200.5" text-anchor="middle" font-size="12.5" fill="#4d3300">WireGuard</text>
+<path d="M1410,341 L1410,420" fill="none" stroke="#c98a00" stroke-width="2.2" marker-end="url(#a-sig)"/>
+<text x="1424" y="362" font-size="12.5" text-anchor="start" fill="#4d3300">SSH, dashboard, API</text>
+<path d="M1040,435 L1190,435" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<text x="1115.0" y="425.0" text-anchor="middle" font-size="12.5" fill="#08413a">heartbeat, traffic</text>
+<path d="M1100,470 L1040,470" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<path d="M1100,640 L1040,640" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<path d="M1190,545 L1100,545 L1100,470" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<path d="M1100,545 L1100,640" fill="none" stroke="#7a4fd6" stroke-width="2.2" marker-end="url(#a-cfg)"/>
+<text x="1088" y="572" font-size="11.5" text-anchor="end" fill="#2a1457">signed config</text>
+<text x="1088" y="587" font-size="11.5" text-anchor="end" fill="#2a1457">over mTLS to</text>
+<text x="1088" y="602" font-size="11.5" text-anchor="end" fill="#2a1457">both gateways</text>
+<path d="M1640,560 L1665,560 L1665,930 L1640,930" fill="none" stroke="#555" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#a-ext)"/>
+<path d="M300,700 L300,840 L1180,840" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<path d="M840,708 L840,840" fill="none" stroke="#1a9c8b" stroke-width="2.2" marker-end="url(#a-tel)"/>
+<text x="330" y="830" font-size="12.5" text-anchor="start" fill="#08413a">metrics and logs from every host (Alloy), and sandbox telemetry via the relay</text>
+<text x="40" y="1060" font-size="13" text-anchor="start" fill="#222">Gateways, control plane, relay and bastion have fixed addresses from platform.yaml, so VRRP peers and the inventory are static.</text>
+<text x="40" y="1084" font-size="13" text-anchor="start" fill="#222">Every rule between these networks is in security-groups.yaml and is enforced twice: by Neutron security groups and by nftables on each host (docs/reports/isolation.md).</text>
+<text x="40" y="1108" font-size="13" text-anchor="start" fill="#222">Two networks cannot talk to each other except through a gateway or a router; sandboxes can reach only the relay, and the gateways' ports 80 and 443.</text>
+</svg>

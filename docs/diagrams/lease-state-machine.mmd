@@ -1,0 +1,10 @@
+stateDiagram-v2
+  [*] --> free
+  free --> pooled: pool manager reserves
+  free --> leased: cold path
+  pooled --> leased: claimed by a team
+  pooled --> draining: warm resource discarded
+  leased --> pooled: registration undone
+  leased --> draining: expiry or teardown
+  draining --> quarantined: VM and port gone
+  quarantined --> free: after quarantine_seconds

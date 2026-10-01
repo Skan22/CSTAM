@@ -1,0 +1,18 @@
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant N as Neutron (floating IP)
+  participant K as keepalived (MASTER)
+  participant T as Traefik
+  participant S as Sandbox VM
+  participant A as ipo-agent
+  C->>N: GET / (Host alpha.cstam.felcloud.tn), port 80
+  N->>K: DNAT to VIP 10.0.0.100 (the MASTER holds it)
+  K->>T: packet delivered to the local Traefik
+  Note over T: router Host(alpha...) matches<br/>optional middlewares (none by default):<br/>secure-headers, rate-limit, compress
+  T->>S: GET / to http://10.20.0.x:80
+  S-->>T: 200 response
+  T-->>C: 200 response
+  T-)A: JSON access log line (host, status, duration)
+  Note over A: counts per host for 10 s, never stores<br/>client addresses or query strings
+  A-)A: POST /v1/gateways/gw-a/traffic

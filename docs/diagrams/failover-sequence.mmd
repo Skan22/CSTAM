@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  participant C as Clients (new connections)
+  participant A as gw-a (MASTER, prio 150)
+  participant B as gw-b (BACKUP, prio 100)
+  participant CP as Control plane
+  rect rgb(255, 244, 214)
+    Note over A,B: Normal: A sends VRRP adverts every 0.2 s (unicast)
+    A-)B: advert
+  end
+  C->>A: requests via the VIP
+  Note over A: VM dies, or Traefik fails the check twice (1 s apart)
+  A--xB: adverts stop (or priority-0 advert on FAULT)
+  Note over B: master-down timer expires
+  B->>B: becomes MASTER, adds the VIP
+  B-)C: gratuitous ARP (repeated)
+  C->>B: next requests via the VIP
+  B-)CP: heartbeat: MASTER (live_version N)
+  Note over CP: one fresh MASTER: healthy.<br/>Two fresh MASTERs after a promotion: split brain alarm
+  Note over A: A returns as BACKUP (nopreempt): no second flap
