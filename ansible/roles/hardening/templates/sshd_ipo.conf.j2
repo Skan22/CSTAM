@@ -1,0 +1,13 @@
+# Managed by Ansible. SSH is reachable from the bastion only (the firewall says the same).
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AllowAgentForwarding no
+X11Forwarding no
+MaxAuthTries 3
+LoginGraceTime 20
+ClientAliveInterval 30
+ClientAliveCountMax 4
+{% if hardening_ssh_allow_users %}
+AllowUsers {{ hardening_ssh_allow_users | join(' ') }}
+{% endif %}

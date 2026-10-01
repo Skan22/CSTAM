@@ -1,0 +1,23 @@
+# Managed by Ansible (role gateway_network).
+# A gateway has a port on edge-net and one on sandbox-net. A sandbox that dials an edge address
+# (the VIP included) comes in through r-edge on the edge port, but the main table would send the
+# answer straight out of the sandbox port with an edge source, and port security drops that.
+# Everything sourced from an edge address therefore uses its own table, which leaves by the edge
+# port. tests/isolation runs these same commands in its lab.
+[Unit]
+Description=Route answers from edge addresses through the edge port
+Wants=network-online.target
+After=network-online.target
+Before=keepalived.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=-{{ gateway_network_ip }} rule del from {{ gateway_network_edge_cidr }} lookup {{ gateway_network_table }} priority 100
+ExecStart={{ gateway_network_ip }} route replace {{ gateway_network_edge_cidr }} dev {{ gateway_network_edge_interface }} table {{ gateway_network_table }}
+ExecStart={{ gateway_network_ip }} route replace default via {{ gateway_network_edge_router }} dev {{ gateway_network_edge_interface }} table {{ gateway_network_table }}
+ExecStart={{ gateway_network_ip }} rule add from {{ gateway_network_edge_cidr }} lookup {{ gateway_network_table }} priority 100
+ExecStop=-{{ gateway_network_ip }} rule del from {{ gateway_network_edge_cidr }} lookup {{ gateway_network_table }} priority 100
+
+[Install]
+WantedBy=multi-user.target

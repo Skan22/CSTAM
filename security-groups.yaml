@@ -1,0 +1,41 @@
+# Network policy for every layer: Pulumi builds the Neutron security groups from it, the hardening
+# role renders the same rules as nftables on each host, and tests/isolation proves them.
+# Rules are ingress-only and stateful; a source is another group (a remote-group reference,
+# never an address range) or `internet`. Anything not listed is denied. `network` is the network whose
+# port the rule opens, so a rule for the edge port does not open the same port on the mgmt one.
+# `internet` is 0.0.0.0/0, which also matches anything that can route to that network.
+#
+# Which hosts are in which group, and their addresses, come from platform.yaml.
+members:
+  sg-gateway: [gw-a, gw-b]
+  sg-control: [cp-1, cp-2]
+  sg-relay: [relay]
+  sg-bastion: [bastion]
+  sg-sandbox: []              # every address of ip_pool, plus nothing else
+groups:
+  sg-gateway:
+    ingress:
+      - {network: edge, from: internet, proto: tcp, ports: [80, 443], why: "public HTTP and HTTPS on the VIP"}
+      - {network: edge, from: sg-gateway, proto: vrrp, why: "VRRP adverts between the pair"}
+      - {network: mgmt, from: sg-control, proto: tcp, ports: [8443], why: "control plane pushes config to the agent"}
+      - {network: mgmt, from: sg-bastion, proto: tcp, ports: [22], why: "SSH through the bastion only"}
+  sg-sandbox:
+    ingress:
+      - {network: sandbox, from: sg-gateway, proto: tcp, ports: [80], why: "Traefik reaches the team's app"}
+  sg-control:
+    ingress:
+      - {network: mgmt, from: sg-gateway, proto: tcp, ports: [8000], why: "agents report heartbeats and traffic"}
+      - {network: mgmt, from: sg-control, proto: any, why: "the pair: replication, scraping, observability"}
+      - {network: mgmt, from: sg-relay, proto: tcp, ports: [9090, 3100, 4317], why: "relay forwards sandbox telemetry"}
+      - {network: mgmt, from: sg-bastion, proto: tcp, ports: [22, 3000, 8000], why: "operators: SSH, Grafana, API"}
+  sg-relay:
+    ingress:
+      - {network: sandbox, from: sg-sandbox, proto: tcp, ports: [4317, 4318], why: "sandbox telemetry in"}
+      - {network: sandbox, from: sg-sandbox, proto: udp, ports: [5140], why: "sandbox syslog in"}
+      - {network: mgmt, from: sg-bastion, proto: tcp, ports: [22], why: "SSH through the bastion only"}
+  sg-bastion:
+    ingress:
+      - {network: mgmt, from: internet, proto: udp, ports: [51820], why: "WireGuard"}
+# The only thing the internet may reach on the floating IP (which maps to the VIP).
+public:
+  floating_ip_ports: [80, 443]

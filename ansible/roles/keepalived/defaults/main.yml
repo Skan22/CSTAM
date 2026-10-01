@@ -14,7 +14,7 @@ keepalived_check_timeout: 2
 keepalived_check_fall: 2
 keepalived_check_rise: 2
 
-keepalived_interface: eth0
+keepalived_interface: "{{ ansible_facts | ipo_iface_for(keepalived_src_ip) }}"
 keepalived_src_ip: "{{ ipo_platform.network.hosts[inventory_hostname].edge }}"
 keepalived_peer_ip: "{{ ipo_platform.network.hosts[keepalived_peer].edge }}"
 keepalived_vip: "{{ ipo_platform.network.vip }}"

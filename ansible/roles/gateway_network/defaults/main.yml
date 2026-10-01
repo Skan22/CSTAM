@@ -1,0 +1,8 @@
+---
+gateway_network_edge_cidr: "{{ ipo_platform.network.edge_cidr }}"
+# Neutron gives a subnet's first address to its router unless told otherwise (r-edge here).
+gateway_network_edge_router: "{{ ipo_platform.network.edge_cidr | ipo_nth_host(1) }}"
+gateway_network_edge_interface: >-
+  {{ ansible_facts | ipo_iface_for(ipo_platform.network.hosts[inventory_hostname].edge) }}
+gateway_network_table: 100
+gateway_network_ip: /usr/sbin/ip

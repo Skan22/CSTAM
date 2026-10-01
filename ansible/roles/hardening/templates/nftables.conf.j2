@@ -1,0 +1,42 @@
+#!/usr/sbin/nft -f
+# Managed by Ansible. Mirrors security-groups.yaml for {{ hardening_group }} on this host, so a
+# mistake in the cloud security groups is not the only thing between a sandbox and the platform.
+# Replaces only its own table (create, delete, recreate: atomic, and fine on the first run), so
+# anything else that keeps rules here survives a reload. Every rule names this host's address on
+# the rule's network: Linux accepts any of its addresses on any interface, so without that a
+# sandbox could route a mgmt address via this host's sandbox port.
+table inet ipo
+delete table inet ipo
+
+table inet ipo {
+  chain input {
+    type filter hook input priority 0; policy drop;
+    ct state established,related accept
+    ct state invalid drop
+    iifname "lo" accept
+    udp sport 67 udp dport 68 accept
+{% for r in hardening_ingress %}
+    # {{ r['from'] }}: {{ r.why }}
+{% set src = r.sources | join(", ") %}
+{% set dst = r.dests | join(", ") %}
+{% if r.proto == "vrrp" %}
+    ip saddr { {{ src }} } ip daddr { {{ dst }} } ip protocol vrrp accept
+{% elif r.proto == "any" %}
+    ip saddr { {{ src }} } ip daddr { {{ dst }} } accept
+{% else %}
+    ip saddr { {{ src }} } ip daddr { {{ dst }} } {{ r.proto }} dport { {{ r.ports | join(", ") }} } accept
+{% endif %}
+{% endfor %}
+{% for rule in hardening_extra_input %}
+    {{ rule }}
+{% endfor %}
+  }
+
+  chain forward {
+    type filter hook forward priority 0; policy drop;
+  }
+
+  chain output {
+    type filter hook output priority 0; policy accept;
+  }
+}

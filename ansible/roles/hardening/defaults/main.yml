@@ -1,0 +1,15 @@
+---
+# Both files live at the repository root and are loaded by the play (see playbooks/site.yml).
+hardening_group: "{{ ipo_security_groups | ipo_group_of(inventory_hostname) }}"
+hardening_ingress: "{{ ipo_security_groups | ipo_host_ingress(ipo_platform, inventory_hostname) }}"
+# Extra lines for the input chain, e.g. a monitoring probe on one host.
+hardening_extra_input: []
+hardening_nft_path: /etc/nftables.conf
+# Sysctls a role may add; the baseline is in templates/sysctl.conf.j2.
+# Gateways keep forwarding off too: Traefik terminates and re-originates, it never routes.
+hardening_sysctl_extra: {}
+hardening_ssh_allow_users: []
+hardening_selinux_state: enforcing
+hardening_packages:
+  Debian: [nftables, auditd]
+  RedHat: [nftables, audit]
