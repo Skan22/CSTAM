@@ -1,0 +1,6 @@
+# The policy pack's own environment: Pulumi creates it from here (toolchain uv).
+[project]
+name = "ipo-policy"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["pulumi>=3.266", "pulumi-policy>=1.21"]

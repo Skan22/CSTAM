@@ -1,0 +1,5 @@
+description: IPO guardrails (plan M1) - checked on every preview and up
+runtime:
+  name: python
+  options:
+    toolchain: uv

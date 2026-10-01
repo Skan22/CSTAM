@@ -6,6 +6,9 @@ cd "$(dirname "$0")/.."
 echo "== control-plane: lint, types, tests"
 (cd control-plane && uv sync --locked && uv run ruff check . && uv run mypy && uv run pytest -q)
 
+echo "== infra/pulumi: lint, types, rules, policy pack, program under mocks"
+(cd infra/pulumi && uv sync --locked && uv run ruff check . && uv run mypy && uv run pytest -q)
+
 echo "== system tests: lint, types, spec cross-checks"
 (cd tests && uv sync --locked && uv run ruff check . && uv run mypy && uv run pytest -q)
 

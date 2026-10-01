@@ -1,0 +1,15 @@
+name: ipo
+description: Resilient IP Optimizer, day 0 - networks, security groups, VIP, floating IPs and VMs
+runtime:
+  name: python
+  options:
+    toolchain: uv
+config:
+  ipo:keyPair:
+    type: string
+    default: ipo-ops
+    description: Nova key pair injected into every VM (operators reach them through the bastion)
+  ipo:prefix:
+    type: string
+    default: ""
+    description: Prefix for every name, when dev and demo must share one OpenStack project

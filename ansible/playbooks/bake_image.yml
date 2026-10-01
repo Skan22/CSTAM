@@ -9,11 +9,11 @@
   vars:
     builder: "ipo-builder-{{ image_version }}"
   tasks:
-    - name: Create the builder on mgmt-net, reachable only by the bastion (sg-builder)
+    - name: Create the builder on mgmt-net, reachable only by the bastion (sg-builder.mgmt)
       ansible.builtin.command:
         argv: [openstack, server, create, --wait, --format, json,
                --image, "{{ ipo_platform.images.base }}", --flavor, "{{ ipo_platform.flavors.sandbox }}",
-               --network, mgmt-net, --security-group, sg-builder, --key-name, "{{ builder_key | default('ipo-ops') }}",
+               --network, mgmt-net, --security-group, sg-builder.mgmt, --key-name, "{{ builder_key | default('ipo-ops') }}",
                "{{ builder }}"]
       register: bake_server
       changed_when: true

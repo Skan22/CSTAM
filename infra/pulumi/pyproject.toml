@@ -1,0 +1,38 @@
+[project]
+name = "ipo-infra"
+version = "0.1.0"
+description = "Day 0: networks, security groups, VIP and VMs for the Resilient IP Optimizer"
+requires-python = ">=3.12"
+dependencies = [
+    "jsonschema>=4.26.0",
+    "pulumi>=3.266.0",
+    "pulumi-openstack>=5.5.2",
+    "pulumi-policy>=1.21.0",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "types-pyyaml", "types-jsonschema"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["."]
+# Thin CrossGuard glue run by Pulumi from inside policy/; checks.py is what is typed and tested.
+exclude = ["\\.venv", "policy/__main__\\.py"]
+
+[[tool.mypy.overrides]]
+module = ["pulumi.*", "pulumi_openstack.*", "pulumi_policy.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning:pulumi_openstack"]

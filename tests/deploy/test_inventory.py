@@ -67,3 +67,15 @@ def test_every_secret_a_quadlet_mounts_is_created_by_a_role() -> None:
                for line in p.read_text().splitlines() if line.startswith("Secret=")}
     created = set(re.findall(r"(?:podman_secret_name|name): (ipo-[\w-]+)", text_of(ANSIBLE / "roles")))
     assert mounted <= created, mounted - created
+
+
+def test_security_groups_the_deploy_names_are_ones_pulumi_creates() -> None:
+    import sys
+    sys.path.insert(0, str(render.REPO / "infra" / "pulumi"))
+    from ipo_infra import rules  # type: ignore[import-not-found]  # pure: no Pulumi needed
+
+    plat = render.platform()
+    spec = yaml.safe_load((render.REPO / "security-groups.yaml").read_text())
+    created = set(rules.neutron_groups(spec, plat))
+    named = set(re.findall(r"\bsg-[a-z]+\.[a-z]+\b", text_of(ANSIBLE / "roles", ANSIBLE / "playbooks")))
+    assert named and named <= created, named - created

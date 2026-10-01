@@ -1,0 +1,2 @@
+# `pulumi stack output --json > outputs/<stack>.json`, read by Ansible; derived from the stack.
+outputs/

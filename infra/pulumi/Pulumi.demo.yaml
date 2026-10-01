@@ -1,0 +1,3 @@
+# Frozen before the pitch. Use a prefix only if FelCloud gives a single project for both stacks.
+config:
+  ipo:prefix: ""
