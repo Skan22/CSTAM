@@ -24,21 +24,22 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from rich import box
-from rich.align import Align
 from rich.console import Console, Group
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from chaos import theme as th
+
 if TYPE_CHECKING:
     from chaos.world import World
 
-GW_COLOURS = {"gw-a": "cyan", "gw-b": "magenta"}
-STATE_COLOURS = {"MASTER": "green", "BACKUP": "yellow", "FAULT": "red", "DOWN": "red",
-                 "UNKNOWN": "grey50"}
-KEYS = [("r", "register"), ("d", "delete"), ("n", "unknown host"), ("f", "fail over"),
-        ("k", "kill primary VM"), ("x", "split brain"), ("h", "heal"), ("l", "rate"), ("q", "quit")]
+GW_COLOURS = th.GW_COLOURS
+STATE_COLOURS = th.STATE_COLOURS
+KEYS = [("r", "register"), ("d", "delete"), ("n", "unknown"), ("f", "fail over"), ("k", "kill VM"),
+        ("x", "split brain"), ("h", "heal"), ("l", "rate"), ("q", "quit")]
+STAGES = ["build", "operate", "break", "teardown"]
 RATES = (4, 15, 40)
 SLUG = re.compile(r"[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?")
 
@@ -89,6 +90,10 @@ class Dash:
     rate: int = RATES[0]
     prompt: tuple[str, str] | None = None  # (what, typed so far)
     busy: str = ""
+    stage: int = 1  # build, operate, break, teardown: where the story is
+    cloud: dict[str, Any] | None = None  # what `pulumi up` built, when this run did that
+    cloud_dash: Any = None
+    view: str = "lab"
     quit: bool = False
     t0: float = field(default_factory=time.monotonic)
 
@@ -100,25 +105,25 @@ class Dash:
 
 
 def badge(state: str) -> Text:
-    return Text(f" {state} ", style=f"bold black on {STATE_COLOURS.get(state, 'white')}")
+    return th.badge(state, STATE_COLOURS.get(state, th.TEXT))
 
 
 def gateway_panel(name: str, g: GwView, vip: str) -> Panel:
     state = "DOWN" if not g.up else g.state
-    colour = STATE_COLOURS.get(state, "white")
+    colour = STATE_COLOURS.get(state, th.TEXT)
     body = Table.grid(padding=(0, 1))
-    body.add_column(justify="right", style="dim")
+    body.add_column(justify="right", style=th.DIM)
     body.add_column()
     body.add_row("vrrp", badge(state))
-    body.add_row("vip", Text(f"◉ holds {vip}", style="bold green") if g.vip
-                 else Text("○ -", style="dim"))
+    body.add_row("vip", Text(f"◉ holds {vip}", style=f"bold {th.MINT}") if g.vip
+                 else Text("○ -", style=th.DIM))
     body.add_row("config", Text(f"v{g.version}" if g.version is not None else "?",
-                                style="bold"))
-    body.add_row("agent", Text("● up", style="green") if g.up and not g.faulted
-                 else Text("✖ faulted" if g.faulted else "✖ down", style="red"))
+                                style=f"bold {th.TEXT}"))
+    body.add_row("agent", Text("● up", style=th.MINT) if g.up and not g.faulted
+                 else Text("✖ faulted" if g.faulted else "✖ down", style=th.CORAL))
     body.add_row("traefik", Text(f"pid {g.traefik_pid}" if g.traefik_pid else "-"))
-    body.add_row("cp sees", Text(g.cp_state, style=STATE_COLOURS.get(g.cp_state, "white")))
-    return Panel(body, title=f"[bold {GW_COLOURS.get(name, 'white')}]{name}[/]",
+    body.add_row("cp sees", Text(g.cp_state, style=STATE_COLOURS.get(g.cp_state, th.TEXT)))
+    return Panel(body, title=f"[bold {GW_COLOURS.get(name, th.TEXT)}]{name}[/]",
                  subtitle=f"priority {g.priority}", border_style=colour, box=box.HEAVY if g.vip
                  else box.ROUNDED)
 
@@ -126,19 +131,19 @@ def gateway_panel(name: str, g: GwView, vip: str) -> Panel:
 def cluster_panel(d: Dash) -> Panel:
     masters = [n for n, g in d.gateways.items() if g.up and g.state == "MASTER"]
     body = Table.grid(padding=(0, 1))
-    body.add_column(justify="right", style="dim")
+    body.add_column(justify="right", style=th.DIM)
     body.add_column()
-    body.add_row("vip", Text(d.vip, style="bold"))
+    body.add_row("vip", Text(d.vip, style=f"bold {th.TEXT}"))
     body.add_row("masters", Text(", ".join(masters) or "none",
-                                 style="green" if len(masters) == 1 else "bold red"))
+                                 style=th.MINT if len(masters) == 1 else f"bold {th.CORAL}"))
     if d.split_brain or len(masters) > 1:
-        body.add_row("", Text(" SPLIT BRAIN ", style="bold white on red blink"))
+        body.add_row("", Text(" SPLIT BRAIN ", style=f"bold #120a1a on {th.CORAL} blink"))
     else:
         body.add_row("", Text("healthy" if masters else "NO MASTER",
-                              style="green" if masters else "bold red"))
+                              style=th.MINT if masters else f"bold {th.CORAL}"))
     body.add_row("teams", Text(str(len(d.teams))))
-    border = "red" if d.split_brain or len(masters) != 1 else "green"
-    return Panel(body, title="[bold]cluster[/]", border_style=border)
+    border = th.CORAL if d.split_brain or len(masters) != 1 else th.MINT
+    return Panel(body, title=f"[bold {th.TEXT}]cluster[/]", border_style=border)
 
 
 def window(d: Dash, seconds: float, now: float) -> list[Sample]:
@@ -153,11 +158,11 @@ def traffic_panel(d: Dash, width: int, now: float) -> Panel:
         if i and i % inner == 0:
             strip.append("\n")
         if s.code == "ERR":
-            strip.append("✖", style="bold red")
+            strip.append("✖", style=f"bold {th.CORAL}")
         elif s.code != "200":
-            strip.append("▮", style="yellow")
+            strip.append("▮", style=th.AMBER)
         else:
-            strip.append("▮", style=GW_COLOURS.get(s.via, "white"))
+            strip.append("▮", style=GW_COLOURS.get(s.via, th.TEXT))
     win = window(d, 5, now)
     ok = [s for s in win if s.code == "200"]
     errs = [s for s in win if s.code == "ERR"]
@@ -169,90 +174,96 @@ def traffic_panel(d: Dash, width: int, now: float) -> Panel:
     for name in d.gateways:
         n = sum(1 for s in ok if s.via == name)
         pct = 100 * n / len(ok) if ok else 0
-        shares.append(f" {name} ", style=f"bold {GW_COLOURS.get(name, 'white')}")
-        shares.append("█" * round(pct / 5) + "░" * (20 - round(pct / 5)),
-                      style=GW_COLOURS.get(name, "white"))
+        shares.append(f" {name} ", style=f"bold {GW_COLOURS.get(name, th.TEXT)}")
+        shares.append_text(th.bar(pct / 100, 20, GW_COLOURS.get(name, th.TEXT)))
         shares.append(f" {pct:3.0f}%  ")
     done = [s for s in d.samples if now - s.at <= 60 and s.code == "200"]
     gap = max((b.at - a.at for a, b in zip(done, done[1:], strict=False)), default=0.0)
     stats = Text()
-    stats.append(f" {len(win) / 5:4.1f} req/s ", style="bold")
-    stats.append(f"  errors {len(errs)}", style="bold red" if errs else "green")
-    stats.append(f"  404s {len(other)}", style="yellow" if other else "dim")
+    stats.append(f" {len(win) / 5:4.1f} req/s ", style=f"bold {th.TEXT}")
+    stats.append(f"  errors {len(errs)}", style=f"bold {th.CORAL}" if errs else th.MINT)
+    stats.append(f"  404s {len(other)}", style=th.AMBER if other else th.DIM)
     stats.append(f"  p50 {p50:.0f}ms  p99 {p99:.0f}ms")
-    stats.append(f"  longest silence (60s) {gap:.2f}s",
-                 style="bold red" if gap > 0.8 else "dim")
-    return Panel(Group(strip, Text(""), shares, stats), title="[bold]live requests through the VIP[/]",
-                 subtitle=f"[dim]{d.rate} req/s · each ▮ is one request, coloured by the gateway "
-                          "that served it · ▮ 404 · ✖ failed[/]", border_style="blue")
+    stats.append(f"  longest silence (60s) {gap:.2f}s", style=f"bold {th.CORAL}" if gap > 0.8 else th.DIM)
+    return Panel(Group(strip, Text(""), shares, stats),
+                 title=f"[bold {th.TEXT}]live requests through the VIP[/]",
+                 subtitle=f"[{th.DIM}]{d.rate} req/s · each ▮ is one request, coloured by the gateway "
+                          f"that served it · ▮ 404 · ✖ failed[/]", border_style=th.EDGE)
 
 
 def routes_panel(d: Dash, now: float) -> Panel:
-    t = Table(box=box.SIMPLE_HEAD, expand=True, pad_edge=False)
-    t.add_column("subdomain", overflow="ellipsis", no_wrap=True, ratio=1)
-    t.add_column("sandbox", no_wrap=True, min_width=10)
-    t.add_column("state", no_wrap=True, min_width=8)
-    t.add_column("5s", justify="right", no_wrap=True, min_width=8)
+    tab = Table(box=box.SIMPLE_HEAD, expand=True, pad_edge=False)
+    tab.add_column("subdomain", overflow="ellipsis", no_wrap=True, ratio=1)
+    tab.add_column("sandbox", no_wrap=True, min_width=10)
+    tab.add_column("state", no_wrap=True, min_width=8)
+    tab.add_column("5s", justify="right", no_wrap=True, min_width=8)
     win = window(d, 5, now)
     for team in d.teams:
         mine = [s for s in win if s.host == team.host]
         oks = sum(1 for s in mine if s.code == "200")
-        colour = {"active": "green", "pending": "yellow", "draining": "yellow"}.get(team.state, "red")
-        t.add_row(team.host.removesuffix("." + d.domain) + f"[dim].{d.domain}[/]", team.ip,
+        colour = {"active": th.MINT, "pending": th.AMBER, "draining": th.AMBER}.get(team.state, th.CORAL)
+        tab.add_row(team.host.removesuffix("." + d.domain) + f"[{th.DIM}].{d.domain}[/]", team.ip,
                   f"[{colour}]{team.state}[/]", f"{oks}/{len(mine)} ok" if mine else "-")
     if not d.teams:
-        t.add_row("[dim]no teams yet - press r[/]", "", "", "")
-    return Panel(t, title="[bold]routes[/]", border_style="cyan")
+        tab.add_row(f"[{th.DIM}]no teams yet - press r[/]", "", "", "")
+    return Panel(tab, title=f"[bold {th.TEXT}]routes[/]", border_style=th.EDGE)
 
 
 def events_panel(d: Dash, lines: int) -> Panel:
     out = Text()
-    styles = {"info": "white", "ok": "green", "warn": "yellow", "bad": "bold red", "act": "bold cyan"}
+    styles = {"info": th.TEXT, "ok": th.MINT, "warn": th.AMBER, "bad": f"bold {th.CORAL}",
+              "act": f"bold {th.TEAL}"}
     shown = list(d.events)[-lines:]
-    for i, (t, level, text) in enumerate(shown):
-        out.append(f"{t:7.1f}s ", style="dim")
-        out.append(text, style=styles.get(level, "white"))
+    for i, (ts, level, text) in enumerate(shown):
+        out.append(f"{ts:7.1f}s ", style=th.DIM)
+        out.append(text, style=styles.get(level, th.TEXT))
         if i < len(shown) - 1:
             out.append("\n")
-    return Panel(out, title="[bold]events[/]", border_style="grey50")
+    return Panel(out, title=f"[bold {th.TEXT}]events[/]", border_style=th.EDGE)
 
 
 def footer(d: Dash) -> Panel:
+    if d.caption and not d.prompt:  # the scripted tour speaks where the key hints would be
+        return Panel(Text(d.caption, style=f"bold {th.AMBER}"), border_style=th.AMBER, box=box.SQUARE,
+                     padding=(0, 1))
     if d.prompt:
         what, typed = d.prompt
-        body: Text = Text.assemble((f" {what} › ", "bold cyan"), (typed, "bold"), ("▌", "blink"),
-                                   ("   enter to confirm · esc to cancel", "dim"))
-    else:
-        body = Text()
-        for key, label in KEYS:
-            body.append(f" {key} ", style="bold black on white")
-            body.append(f" {label}  ", style="dim")
-        if d.busy:
-            body.append(f"  ⏳ {d.busy}", style="bold yellow")
-    return Panel(body, border_style="grey37", box=box.SQUARE)
+        body = Text.assemble((f" {what} › ", f"bold {th.AMBER}"), (typed, f"bold {th.TEXT}"),
+                             ("▌", "blink"), ("   enter to confirm · esc to cancel", th.DIM))
+        return Panel(body, border_style=th.AMBER, box=box.SQUARE, padding=(0, 0))
+    pairs = KEYS if d.cloud is None else [*KEYS[:-1], ("c", "cloud"), KEYS[-1]]
+    return th.keys(pairs, f"{th.spinner(time.monotonic())} {d.busy}" if d.busy else "")
+
+
+def ribbon(d: Dash) -> str:
+    """What the header says on the right: the cloud everything above was built in."""
+    c = d.cloud
+    if not c:
+        return f"*.{d.domain}"
+    vms = sum(1 for s in c.get("servers", []) if s.get("status") == "ACTIVE")
+    return f"{c.get('region', '')} · {vms} VMs · built in {th.clock(c.get('elapsed', 0))}"
 
 
 def render(d: Dash, size: tuple[int, int], now: float | None = None) -> Layout:
     width, height = size
     now = time.monotonic() if now is None else now
+    if d.view == "cloud" and d.cloud_dash is not None:
+        from chaos import cloudtui
+
+        return cloudtui.render(d.cloud_dash, size, now, frozen=True)
     root = Layout()
     middle = max(5, height - HEADER - GATEWAYS - TRAFFIC - FOOTER)
     root.split_column(
         Layout(name="header", size=HEADER), Layout(name="gateways", size=GATEWAYS),
         Layout(name="traffic", size=TRAFFIC), Layout(name="bottom", size=middle),
         Layout(name="footer", size=FOOTER))
-    head = Text.assemble(("  IPO ", "bold white on blue"), ("  Resilient IP Optimizer  ", "bold"),
-                         (f"  real Traefik · keepalived · ipo-agent · *.{d.domain}", "dim"))
-    root["header"].update(Panel(Align.left(head), border_style="blue", box=box.HEAVY))
+    root["header"].update(th.header(STAGES, d.stage, ribbon(d), width))
     gws = list(d.gateways.items())
     root["gateways"].split_row(*[Layout(gateway_panel(n, g, d.vip), name=n) for n, g in gws],
                                Layout(cluster_panel(d), name="cluster"))
     root["traffic"].update(traffic_panel(d, width, now))
     root["bottom"].split_row(Layout(routes_panel(d, now), name="routes", ratio=5),
                              Layout(events_panel(d, middle - 2), name="events", ratio=4))
-    if d.caption:
-        root["header"].update(Panel(Text(d.caption, style="bold yellow"), title="[bold]narration[/]",
-                                    border_style="yellow", box=box.HEAVY))
     root["footer"].update(footer(d))
     return root
 
@@ -278,6 +289,20 @@ class Controller:
                 via=g.addr["sandbox"])
         dash.domain, dash.vip = w.plat["domain"], w.vip
         self._last: dict[str, Any] = {}
+        self.load_cloud()
+
+    def load_cloud(self) -> None:
+        """When this run first built the cloud (IPO_CLOUD_SNAPSHOT), keep it for the header and
+        the `c` view."""
+        import json
+
+        from chaos import cloudtui
+
+        path = os.environ.get("IPO_CLOUD_SNAPSHOT")
+        if path and os.path.exists(path):
+            with open(path) as f:
+                self.d.cloud = json.load(f)
+            self.d.cloud_dash = cloudtui.load(self.d.cloud)
 
     def start(self) -> None:
         for fn in (self.poll_loop, self.stream_loop):
@@ -420,6 +445,7 @@ class Controller:
 
     def failover(self) -> None:
         master = next((n for n, g in self.d.gateways.items() if g.state == "MASTER" and g.up), None)
+        self.d.stage = 2
         self.d.log(f"POST /v1/gateways/failover (primary is {master})", "act")
         code, body = self.w.cp.api("POST", "/v1/gateways/failover", {})
         self.d.log(f"→ {code} {body}", "info" if code == 202 else "bad")
@@ -429,17 +455,24 @@ class Controller:
         if master is None:
             self.d.log("no MASTER to kill", "warn")
             return
+        self.d.stage = 2
         self.d.log(f"power off {master.name}: every process dies, the NICs go dark", "act")
         master.power_off()
 
     def partition(self) -> None:
+        self.d.stage = 2
         self.d.log("dropping VRRP between the gateways (they stay up, but cannot hear each other)", "act")
         self.w.partition()
 
     def heal(self) -> None:
         self.d.log("healing: undo the partition, restart whatever died", "act")
         self.w.heal()
+        self.d.stage = 1
         self.d.log("cluster healthy: one MASTER, one BACKUP", "ok")
+
+    def toggle_cloud(self) -> None:
+        if self.d.cloud_dash is not None:
+            self.d.view = "cloud" if self.d.view == "lab" else "lab"
 
     def cycle_rate(self) -> None:
         self.d.rate = RATES[(RATES.index(self.d.rate) + 1) % len(RATES)]
@@ -472,6 +505,7 @@ class Controller:
             "x": lambda: self.run("partition", self.partition),
             "h": lambda: self.run("healing", self.heal),
             "l": self.cycle_rate,
+            "c": self.toggle_cloud,
             "q": lambda: setattr(d, "quit", True),
         }
         if (action := table.get(ch.lower())) is not None:

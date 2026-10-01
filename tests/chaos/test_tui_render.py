@@ -50,7 +50,7 @@ def test_it_fits_a_small_terminal_and_a_prompt_replaces_the_key_help() -> None:
     d = sample_dash()
     d.prompt = ("register team", "dem")
     text = draw(d, 100, 30)
-    assert "register team ›" in text and "dem" in text and "kill primary" not in text
+    assert "register team ›" in text and "dem" in text and "kill VM" not in text
     assert len(text.splitlines()) <= 30
 
 
@@ -71,3 +71,13 @@ def test_keys_edit_the_prompt_and_reject_bad_names() -> None:
     assert d.rate == tui.RATES[1]
     c.key("q")
     assert d.quit
+
+
+def test_every_key_hint_fits_in_120_columns_with_the_cloud_key_added() -> None:
+    d = sample_dash()
+    d.cloud = {"region": "North-Africa", "servers": [{"status": "ACTIVE"}] * 6, "elapsed": 84}
+    text = draw(d, 120, 36)
+    for label in ("register", "delete", "unknown", "fail over", "kill VM", "split brain", "heal",
+                  "rate", "cloud", "quit"):
+        assert label in text, label
+    assert "North-Africa · 6 VMs · built in 1:24" in text

@@ -11,6 +11,7 @@ uv run pytest                      # deploy/, isolation/test_model.py; the labs 
 uv run python -m chaos.run         # about 4 minutes
 uv run python -m isolation.run     # about 90 seconds
 uv run python -m chaos.demo        # interactive demo dashboard (--auto: scripted and narrated)
+uv run python -m chaos.demo --clouds ~/clouds.yaml --auto   # build the real cloud first, tear it down after
 ```
 
 | Directory | What it proves |
@@ -21,3 +22,23 @@ uv run python -m chaos.demo        # interactive demo dashboard (--auto: scripte
 | `lab/` | The namespace lab (`netns.py`), the real stack (`stack.py`), and `render.py`, which renders role templates and resolves role variables the way Ansible does. |
 
 Lab logs stay in the temporary directory each run prints (`lab logs: ...`).
+
+## The demo
+
+`python -m chaos.demo` is a story in four stages, shown as a track in the header: **build**,
+**operate**, **break**, **teardown**.
+
+- **build** (`--clouds PATH`): runs `pulumi up` against the real cloud. The screen plans first
+  (a preview, so the bars know the size of the job), asks for Enter before creating anything
+  billed, then shows each resource being created with the guardrails passing live, beside what
+  the OpenStack APIs say exists: a network map that lights up network by network and VM by VM,
+  the VM table, and the project's quota.
+- **operate** and **break**: the failover dashboard on the local lab (real keepalived, Traefik and
+  agents; the OpenStack VMs are not configured by Ansible, so what runs here is the same software
+  on namespaces). Press `c` to look back at the cloud that was built.
+- **teardown**: asks, then runs `pulumi destroy` and watches the cloud empty. `--keep` skips it.
+
+The demo uses its own stack (`live`) with a local state directory, a generated passphrase and an
+SSH key under `~/.local/share/ipo-demo`; credentials stay where you keep them and only their path
+is passed on. `python -m chaos.cloud status|up|destroy --clouds PATH` does the same steps as plain
+text. If a run is interrupted, `python -m chaos.cloud destroy` removes whatever was built.

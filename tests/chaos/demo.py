@@ -15,6 +15,8 @@ sandbox backend, the real control plane). The scenes:
      so the stream moves to the other gateway (`via=` is the gateway that forwarded it).
 """
 
+import argparse
+import json
 import os
 import subprocess
 import sys
@@ -22,8 +24,12 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from chaos.world import World, boot
+
+if TYPE_CHECKING:
+    from chaos.cloud import CloudConfig
 from lab import netns, tools
 from lab.stack import Postgres, wait_for
 
@@ -178,26 +184,82 @@ def interactive(workdir: Path, dsn: str, *, auto: bool) -> None:
         w.shutdown()
 
 
+def parse(argv: list[str]) -> argparse.Namespace:
+    ap = argparse.ArgumentParser(prog="python -m chaos.demo", description=__doc__.split("\n\n")[0])
+    ap.add_argument("--auto", action="store_true", help="drive the dashboards from a narrated script")
+    ap.add_argument("--tour", action="store_true", help="plain scrolling text, one scene per Enter")
+    ap.add_argument("--clouds", type=Path, default=os.environ.get("IPO_CLOUDS"),
+                    help="a clouds.yaml: build the platform in that real cloud first (pulumi up) and "
+                         "tear it down at the end; without it the demo runs on the local lab only")
+    ap.add_argument("--cloud", default="", help="which cloud in the clouds.yaml (default: the first)")
+    ap.add_argument("--keep", action="store_true", help="leave the cloud built when the demo ends")
+    ap.add_argument("--inner", action="store_true", help=argparse.SUPPRESS)
+    return ap.parse_args(argv)
+
+
 def main(argv: list[str]) -> int:
-    if argv[:1] == ["--inner"]:
+    args = parse(argv)
+    if args.inner:
         workdir, dsn = Path(os.environ["IPO_LAB_WORKDIR"]), os.environ["IPO_LAB_DSN"]
-        if "--tour" in argv or not sys.stdout.isatty():
+        if args.tour or not sys.stdout.isatty():
             run(workdir, dsn)
         else:
-            interactive(workdir, dsn, auto="--auto" in argv)
+            interactive(workdir, dsn, auto=args.auto)
         return 0
     if not tools.can_unshare():
         print("unprivileged user namespaces are not available here", file=sys.stderr)
         return 2
     work = Path(tempfile.mkdtemp(prefix="ipo-demo-", dir=os.environ.get("IPO_LAB_TMP")))
+    cfg = None
+    built = False
+    snapshot = work / "cloud.json"
+    try:
+        if args.clouds:
+            from chaos import cloudtui
+            from chaos.cloud import CloudConfig
+
+            cfg = CloudConfig(args.clouds, args.cloud)
+            result = cloudtui.run(cfg, "up", auto=args.auto)
+            built = bool(result.get("resources"))
+            if result.get("quit") or result.get("code") not in (0, None) or result.get("error"):
+                why = result.get("error") or f"exit {result.get('code')}"
+                print(f"the build did not finish ({why})", file=sys.stderr)
+                return 1
+            snapshot.write_text(json.dumps(cloudtui.dump(result, result.get("dash"))))
+        return lab_scene(work, args, snapshot if args.clouds else None)
+    finally:
+        if cfg is not None and built:
+            teardown(cfg, args)
+
+
+def lab_scene(work: Path, args: argparse.Namespace, snapshot: Path | None) -> int:
     pg = Postgres(work / "pg")
     pg.start()
     try:
         env = {**os.environ, "IPO_LAB_DSN": pg.dsn, "IPO_LAB_WORKDIR": str(work / "lab")}
-        cmd = netns.in_lab([sys.executable, "-m", "chaos.demo", "--inner", *argv])
+        if snapshot:
+            env["IPO_CLOUD_SNAPSHOT"] = str(snapshot)
+        flags = [f for f in ("--auto", "--tour") if getattr(args, f[2:])]
+        cmd = netns.in_lab([sys.executable, "-m", "chaos.demo", "--inner", *flags])
         return subprocess.run(cmd, env=env, cwd=Path(__file__).parents[1]).returncode
     finally:
         pg.stop()
+
+
+def teardown(cfg: "CloudConfig", args: argparse.Namespace) -> None:
+    from chaos import cloudtui
+
+    if args.keep:
+        print("\nthe cloud is still built (--keep). When you are done: "
+              f"python -m chaos.cloud destroy --clouds {cfg.clouds_file}", file=sys.stderr)
+        return
+    if not args.auto:
+        answer = input("\nDestroy everything pulumi built in the cloud now? [Y/n] ").strip().lower()
+        if answer in ("n", "no"):
+            print(f"left built. Destroy later: python -m chaos.cloud destroy --clouds {cfg.clouds_file}",
+                  file=sys.stderr)
+            return
+    cloudtui.run(cfg, "destroy", auto=args.auto, confirm=False)
 
 
 if __name__ == "__main__":
