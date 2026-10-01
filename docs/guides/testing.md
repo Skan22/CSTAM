@@ -77,7 +77,8 @@ test:
 | deploy checks | Quadlet re-quoted an inline `HealthCmd` into one that always failed, which would restart a healthy container forever | `python -m ipo.healthcheck` |
 | deploy checks | keepalived ignores a fault file that does not exist at start | tmpfiles entry creates it |
 | real cloud | hard anti-affinity put gateway and control-plane VMs in ERROR | soft anti-affinity by default |
-| real cloud | the external network had no free floating IP | `floatingIps` switch; the demo checks first |
+| real cloud | floating IP allocation failed with `ExternalIpAddressExhausted` unless the request names the external subnet | the program passes `subnet_id`; the demo's preflight does too |
+| real cloud | attaching a floating IP to the VIP port failed (`ExternalGatewayForFloatingIPNotFound`): it raced the router interface | the association depends on the router interface |
 | real cloud | the project had no key pair | the program uploads one |
 
 ## Not tested

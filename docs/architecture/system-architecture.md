@@ -121,7 +121,7 @@ table and key handling are in [security.md](security.md).
 
 | **Not** verified | Why |
 | --- | --- |
-| Ansible roles on real VMs; VRRP between two real OpenStack VMs | no configured hosts yet; the build has no public floating IP (the project's pool is exhausted) and no bastion path |
+| Ansible roles on real VMs; VRRP between two real OpenStack VMs | no configured hosts yet; the floating IPs attach, but nothing answers behind them until the roles run through the bastion |
 | `podman auto-update` rollback, step-ca enrollment end to end, Postgres replication between hosts, WireGuard | no Podman runtime or second host was available |
 | Behaviour with real teams, and the instance limit under a burst | not exercised |
 

@@ -114,16 +114,19 @@ Two things the first real `pulumi up` showed that no test could:
   default is now `soft-anti-affinity`, which separates the pair when it can. **If the cloud has
   one host, a host failure takes both gateways at once**; failover protects against VM and
   process failure, not host failure. Ask FelCloud how many hosts back the zone.
-- **No floating IPs.** The `INTERNET` pool answers every allocation with
-  `ExternalIpAddressExhausted`, although the routers got gateway addresses from it. The program
-  builds without the two public addresses when told (`ipo:floatingIps=false`). Until FelCloud
-  frees addresses the platform has no public entry point.
+- **Floating IPs need the subnet named, and a routed subnet.** Allocation without a subnet
+  returned `ExternalIpAddressExhausted` although the pool had room; naming the external subnet
+  works. Attaching a floating IP to the device-less VIP port then needs that port's subnet to be
+  on a router with an external gateway already, so the association waits for the router
+  interface. With both in place the floating IP attaches to `vip-edge` and goes `ACTIVE`.
+  Whether traffic then reaches whichever gateway holds the VIP is **not yet tested** (it needs the
+  gateways configured).
 
 ## Known limits and risks
 
 | Risk | Status |
 | --- | --- |
-| VRRP between two real OpenStack VMs is **untested**: the lab uses Linux bridges. Neutron must deliver VIP traffic to whichever port lists it as an allowed address pair and learn the move from the gratuitous ARPs. | needs the Ansible roles run on the built VMs |
+| VRRP between two real OpenStack VMs is **untested**: the lab uses Linux bridges. Neutron must deliver VIP traffic (arriving through the floating IP) to whichever port lists it as an allowed address pair and learn the move from the gratuitous ARPs. The floating IP itself does attach to the VIP port. | needs the Ansible roles run on the built VMs |
 | One compute host would defeat the gateway pair (soft anti-affinity) | ask FelCloud; documented |
 | PostgreSQL promotion is manual; there is no automatic fencing beyond the playbook stopping the old primary | accepted for the challenge; runbook exists |
 | step-ca and observability are single instances | accepted; 24 h certificate window |

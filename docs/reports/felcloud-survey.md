@@ -35,12 +35,21 @@ see (it counts addresses, not instances). Ask FelCloud for more if the burst tes
 
 ## What the first real `pulumi up` found (2026-10-01)
 
-- **No floating IPs.** The `INTERNET` pool (197.5.133.1-230) answered every floating-IP request
-  with `ExternalIpAddressExhausted`, although the two routers did get gateway addresses from it.
-  The program now builds without the VIP's and the bastion's public addresses when none can be
-  allocated (`ipo:floatingIps=false`; the demo checks first by allocating and releasing one).
-  Until FelCloud frees addresses, the platform has no public entry point and WireGuard cannot be
-  reached from outside.
+- **Floating IPs: not exhausted, just not auto-allocatable.** Every request without a subnet
+  answered `ExternalIpAddressExhausted` on `INTERNET` (197.5.133.1-230), although the routers got
+  gateway addresses from it. Debugging showed the pool is fine: the same request **naming the
+  external subnet** (`subnet_id`) succeeds at once, while asking for a specific address is
+  forbidden by policy, and the other external networks behave differently (`lb-mgmt-net`
+  auto-allocates; `Rancher-mgmt` does not). The program now passes the subnet.
+- **A floating IP waits for its router.** Attaching one to the VIP port failed with
+  `ExternalGatewayForFloatingIPNotFound` ("External network is not reachable from subnet"):
+  Neutron needs the port's subnet already on a router with an external gateway, and Pulumi had
+  created the association in parallel with the router interface. Each association now depends on
+  its router interface. With both fixes the VIP and bastion floating IPs (`197.5.133.153`,
+  `.222` in the test run) came up `ACTIVE`, attached to the device-less VIP port and the bastion.
+- **Probing from this laptop.** A transparent proxy on the local network answers every TCP port-80
+  connection instantly, including `8.8.8.8:80`, so port-80 tests of a floating IP prove nothing
+  from there. Test with another port (the platform uses 443) or from another network.
 - **Hard anti-affinity fails.** With `anti-affinity` server groups, the four VMs in them (gateways
   and control plane) went to ERROR while the two without a group booted, which fits a single
   compute host in TN-Carthage. The default is now `soft-anti-affinity`; if there is one host, a

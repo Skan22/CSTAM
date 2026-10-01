@@ -28,7 +28,7 @@ no DHCP on sandbox-net.
 **Tests** (`uv run pytest`): the rules module against the spec, every guardrail, and the whole
 program under Pulumi's mocks, with each resource it would create passed through the policy pack.
 `pulumi preview` and `pulumi up` / `destroy` have been run against the team's FelCloud project
-(`docs/reports/felcloud-survey.md` has what they found: no free floating IPs, and hard anti-affinity
+(`docs/reports/felcloud-survey.md` has what they found: floating IPs need the subnet named and a routed subnet, and hard anti-affinity
 failing, hence the `floatingIps` and `antiAffinity` settings). The Ansible roles have not been run
 on those VMs.
 

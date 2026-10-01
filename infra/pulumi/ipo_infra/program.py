@@ -40,15 +40,19 @@ class Networks(pulumi.ComponentResource):
                 opts=child)
         external = openstack.networking.get_network(name=n["external_network"])
         self.external_id = external.id
+        # FelCloud allocates a floating IP only when the request names the external subnet; asked
+        # to choose one itself it answers ExternalIpAddressExhausted although addresses are free.
+        self.external_subnet_id = external.subnets[0] if external.subnets else None
         self.routers = {
             "r-edge": openstack.networking.Router(f"{prefix}r-edge", name=f"{prefix}r-edge",
                                                   external_network_id=external.id, opts=child),
             "r-mgmt": openstack.networking.Router(f"{prefix}r-mgmt", name=f"{prefix}r-mgmt",
                                                   external_network_id=external.id, opts=child),
         }
+        self.router_interfaces: dict[str, openstack.networking.RouterInterface] = {}
         for router, nets in (("r-edge", ("edge", "sandbox")), ("r-mgmt", ("mgmt",))):
             for net in nets:
-                openstack.networking.RouterInterface(
+                self.router_interfaces[net] = openstack.networking.RouterInterface(
                     f"{prefix}{router}-{net}", router_id=self.routers[router].id,
                     subnet_id=self.subnets[net].id, opts=child)
         self.register_outputs({})
@@ -138,10 +142,11 @@ class GatewayPair(_Hosts):
         if ctx.floating_ips:
             self.fip = openstack.networking.FloatingIp(
                 f"{ctx.prefix}fip-public", pool=ctx.platform["network"]["external_network"],
-                description="public address of the VIP", opts=child)
+                subnet_id=ctx.nets.external_subnet_id, description="public address of the VIP", opts=child)
             openstack.networking.FloatingIpAssociate(
                 f"{ctx.prefix}fip-public-vip", floating_ip=self.fip.address, port_id=self.vip_port.id,
-                opts=child)
+                opts=pulumi.ResourceOptions(parent=self,
+                                            depends_on=[ctx.nets.router_interfaces["edge"]]))
 
 
 class ControlPlane(_Hosts):
@@ -171,10 +176,12 @@ class Bastion(_Hosts):
         if ctx.floating_ips:
             self.fip = openstack.networking.FloatingIp(
                 f"{ctx.prefix}fip-bastion", pool=ctx.platform["network"]["external_network"],
-                description="WireGuard", opts=child)
+                subnet_id=ctx.nets.external_subnet_id, description="WireGuard", opts=child)
             openstack.networking.FloatingIpAssociate(
                 f"{ctx.prefix}fip-bastion-port", floating_ip=self.fip.address,
-                port_id=self.ports["bastion"]["mgmt"].id, opts=child)
+                port_id=self.ports["bastion"]["mgmt"].id,
+                opts=pulumi.ResourceOptions(parent=self,
+                                            depends_on=[ctx.nets.router_interfaces["mgmt"]]))
 
 
 @dataclass(frozen=True)

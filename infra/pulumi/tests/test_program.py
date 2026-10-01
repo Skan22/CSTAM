@@ -4,6 +4,7 @@ settings (M1) and run through the policy pack. No cloud is contacted."""
 from typing import Any
 
 import pulumi
+import pulumi_openstack as openstack
 import pytest
 
 from ipo_infra import rules, spec
@@ -23,7 +24,7 @@ class Mocks(pulumi.runtime.Mocks):
 
     def call(self, args: pulumi.runtime.MockCallArgs) -> tuple[dict[str, Any], list[tuple[str, str]]]:
         if args.token == "openstack:networking/getNetwork:getNetwork":
-            return {"id": "ext-net-id", "name": args.args.get("name")}, []
+            return {"id": "ext-net-id", "name": args.args.get("name"), "subnets": ["ext-subnet-id"]}, []
         return {}, []
 
 
@@ -103,6 +104,14 @@ def test_vms_carry_their_role_boot_from_the_config_drive_and_keep_pairs_apart(cr
     assert vms["gw-a"]["networks"][0]["port"] == "gw-a-edge-id"
 
 
+def test_floating_ips_name_the_external_subnet(created: Any) -> None:
+    """FelCloud refuses to pick a subnet itself (`ExternalIpAddressExhausted`) but allocates fine
+    when the request names the external network's subnet."""
+    fips = of_type(":FloatingIp")
+    assert {n for n, _ in fips if not n.startswith(("nofip-", "hard-"))} == {"fip-public", "fip-bastion"}
+    assert all(i["subnetId"] == "ext-subnet-id" for _, i in fips)
+
+
 def test_the_key_pair_is_created_from_the_configured_public_key(created: Any) -> None:
     [(name, i)] = of_type(":Keypair")
     assert name == "ipo-ops" and i["publicKey"] == "ssh-ed25519 AAAA test"
@@ -141,3 +150,21 @@ def test_hard_anti_affinity_can_be_asked_for() -> None:
     groups = [i for typ, name, i in MOCKS.resources if typ.endswith(":ServerGroup")
               and name.startswith("hard-")]
     assert len(groups) == 2 and {g["policies"] for g in groups} == {"anti-affinity"}
+
+
+def test_a_floating_ip_is_attached_only_after_its_subnet_is_routed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutron answers 404 ExternalGatewayForFloatingIPNotFound if the port's subnet is not yet on
+    a router with an external gateway, so each association waits for that router interface."""
+    seen: dict[str, Any] = {}
+    real = openstack.networking.FloatingIpAssociate
+
+    def spy(name: str, *args: Any, **kwargs: Any) -> Any:
+        seen[name] = kwargs["opts"]
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(openstack.networking, "FloatingIpAssociate", spy)
+    built = program.build(PLATFORM, GROUPS, key_pair="ipo-ops", prefix="order-")
+    assert set(seen) == {"order-fip-public-vip", "order-fip-bastion-port"}
+    for name, net in (("order-fip-public-vip", "edge"), ("order-fip-bastion-port", "mgmt")):
+        waits = seen[name].depends_on
+        assert built.nets.router_interfaces[net] in list(waits), name

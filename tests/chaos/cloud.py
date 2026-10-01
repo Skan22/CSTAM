@@ -314,8 +314,9 @@ class Probe:
         ext = next((n for n in c.network.networks() if n.is_router_external and
                     n.name == "INTERNET"), None) or next(n for n in c.network.networks()
                                                        if n.is_router_external)
-        try:
-            ip = c.network.create_ip(floating_network_id=ext.id, description="ipo preflight")
+        try:  # naming the subnet matters: FelCloud refuses the automatic choice (see program.py)
+            ip = c.network.create_ip(floating_network_id=ext.id, subnet_id=(ext.subnet_ids or [None])[0],
+                                     description="ipo preflight")
         except Exception as e:  # noqa: BLE001
             return False, str(e).split(", ")[-1][:120] or type(e).__name__
         c.network.delete_ip(ip)

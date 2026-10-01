@@ -41,7 +41,8 @@ pulumi up --policy-pack policy                 # about 90 s from an empty projec
 mkdir -p outputs && pulumi stack output --json > outputs/dev.json   # Ansible reads this
 ```
 
-Settings for what the cloud may not give you: `ipo:floatingIps=false` (no free floating IPs) and
+Settings for what the cloud may not give you: `ipo:floatingIps=false` (if floating IPs cannot be
+allocated) and
 `ipo:antiAffinity=anti-affinity` (hard separation, only if the cloud has several hosts). See
 [configuration](configuration.md#ansible-and-pulumi-settings).
 

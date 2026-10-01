@@ -68,8 +68,9 @@ The headline results (failover gaps, isolation findings) are in
 
 Stated plainly, so nothing here surprises a reviewer:
 
-- **No public entry point yet.** FelCloud's `INTERNET` pool had no free floating IP when tested,
-  so the built cloud has no public address; the platform builds without them on request.
+- **The public address is allocated but untested end to end.** The floating IPs attach to the VIP
+  port and the bastion, but nothing answers behind them until the Ansible roles have run, so no
+  request has yet travelled from the internet through the floating IP to a gateway.
 - **Not run on real hosts:** the Ansible roles, VRRP between two real OpenStack VMs, `podman
   auto-update` rollback, step-ca enrollment, Postgres replication, WireGuard. They are checked
   against the real programs that read their config, and failover is measured on the real
