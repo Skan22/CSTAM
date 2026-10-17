@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from ipo import metrics, runtime_settings
 from ipo.adapters.dns import Dns, WildcardDns
@@ -129,9 +130,10 @@ class Route:
         host = job.payload["host"]
         with conn.transaction():
             conn.execute(
-                "INSERT INTO routes (host, team_id, backend_ip, backend_port)"
-                " VALUES (%s, %s, %s, %s) ON CONFLICT (host) DO NOTHING",
-                (host, job.team_id, job.payload["ip"], self.d.settings.backend_port))
+                "INSERT INTO routes (host, team_id, backend_ip, backend_port, middlewares)"
+                " VALUES (%s, %s, %s, %s, %s) ON CONFLICT (host) DO NOTHING",
+                (host, job.team_id, job.payload["ip"], self.d.settings.backend_port,
+                 Jsonb(list(self.d.settings.route_middlewares))))
             row = conn.execute(
                 "SELECT team_id::text FROM routes WHERE host = %s", (host,)
             ).fetchone()

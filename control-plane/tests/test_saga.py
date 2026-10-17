@@ -53,6 +53,9 @@ def test_happy_path_ends_with_a_live_team(dsn: str, warm: bool) -> None:
     snap = snapshot(env)
     assert snap["team"] == ("active",) and snap["job"] == ("succeeded",)
     assert snap["routes"] == (1,) and snap["team_tags"] == 1
+    _, _, connect = env
+    with connect() as c:  # every team's route carries the per-team rate limit
+        assert c.execute("SELECT middlewares FROM routes").fetchone() == (["rate-limit"],)
     assert gw.waited == [reg.subdomain] and pr.probed == [reg.subdomain]
     assert list(DNS.records) == [reg.subdomain]
     _, _, connect = env

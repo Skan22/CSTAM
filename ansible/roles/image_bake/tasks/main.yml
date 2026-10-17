@@ -13,3 +13,30 @@
     owner: root
     group: root
     mode: "0644"
+
+- name: Create the directory for the placeholder page
+  ansible.builtin.file:
+    path: /usr/local/lib/ipo
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the placeholder page every sandbox serves until its team replaces it
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - {src: ipo-sandbox-hello.py, dest: /usr/local/lib/ipo/sandbox-hello.py, mode: "0755"}
+    - {src: ipo-sandbox-hello.service, dest: /etc/systemd/system/ipo-sandbox-hello.service, mode: "0644"}
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Start the placeholder page at every boot
+  ansible.builtin.systemd:
+    name: ipo-sandbox-hello.service
+    enabled: true
+    daemon_reload: true

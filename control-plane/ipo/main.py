@@ -96,14 +96,16 @@ class Runtime:
 
 def _users_file(path: str | None) -> list[dict[str, str]]:
     """Staff accounts to create or reset at start, such as the gateway agents' logins: a JSON list
-    of {"email", "password", "role"}, usually a mounted secret. Malformed, it stops the start."""
+    of {"email", "password", "role"}, plus "gateway" for a gateway agent's, usually a mounted
+    secret. Malformed, it stops the start."""
     if not path:
         return []
     accounts = json.loads(Path(path).read_text())
     if not isinstance(accounts, list) or not all(
-            isinstance(a, dict) and set(a) == {"email", "password", "role"}
+            isinstance(a, dict) and {"email", "password", "role"} <= set(a) <= {
+                "email", "password", "role", "gateway"}
             and all(isinstance(v, str) for v in a.values()) for a in accounts):
-        raise ValueError("IPO_USERS_FILE must be a JSON list of {email, password, role}")
+        raise ValueError("IPO_USERS_FILE must be a JSON list of {email, password, role[, gateway]}")
     return accounts
 
 
@@ -136,7 +138,8 @@ def build_runtime(
         if env.get("IPO_ADMIN_EMAIL") and env.get("IPO_ADMIN_PASSWORD"):
             create_user(conn, env["IPO_ADMIN_EMAIL"], env["IPO_ADMIN_PASSWORD"], "admin")
         for account in _users_file(env.get("IPO_USERS_FILE")):
-            create_user(conn, account["email"], account["password"], account["role"])
+            create_user(conn, account["email"], account["password"], account["role"],
+                        account.get("gateway"))
 
     if signer is None:
         if env.get("IPO_SIGNING_KEY"):

@@ -4,6 +4,7 @@ Skipped when the Go toolchain is missing. This is the contract test for the HTTP
 4xx must come back as `Ack(ok=False)` (never retried) and a re-push of the live version as ok.
 """
 
+import json
 import shutil
 import subprocess
 from collections.abc import Iterator
@@ -60,6 +61,15 @@ def test_accepts_what_the_compiler_signs(agent: HttpAgent, signer: Signer) -> No
     ack = agent.put_config(version(signer, 2, RouteRow("a.felcloud.test", "10.20.0.11", 8080, []),
                                    RouteRow("b.felcloud.test", "10.20.0.12", 8080, [])))
     assert ack.ok and ack.live_version == 2
+
+
+def test_accepts_the_per_team_rate_limit_the_compiler_attaches(agent: HttpAgent,
+                                                                 signer: Signer) -> None:
+    v = version(signer, 1, RouteRow("a.felcloud.test", "10.20.0.11", 8080, ["rate-limit"]),
+                RouteRow("b.felcloud.test", "10.20.0.12", 8080, ["rate-limit"]))
+    assert json.loads(v.body)["http"]["middlewares"]["rate-limit"]["rateLimit"][
+        "sourceCriterion"] == {"requestHost": True}  # the bucket is the Host, i.e. the team
+    assert agent.put_config(v).ok
 
 
 def test_refusals_are_permanent_acks_that_report_the_live_version(

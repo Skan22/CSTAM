@@ -23,6 +23,11 @@ from lab import netns, render, tools
 
 REPO = tools.REPO
 ADMIN = ("lab-admin@felcloud.test", "lab-admin-password")
+
+
+def agent_login(gateway: str) -> tuple[str, str]:
+    """A gateway agent's account: bound to its gateway, three routes only (not an admin)."""
+    return f"agent-{gateway}@felcloud.test", f"lab-agent-password-{gateway}"
 JWT_SECRET = "lab-jwt-secret-that-is-at-least-forty-characters-long"
 MGMT_CLIENT = "10.30.0.254"
 EDGE_CLIENT = "10.0.0.254"
@@ -245,7 +250,8 @@ class Gateway:
             "IPO_METRICS_ADDR": "127.0.0.1:9100", "IPO_HEARTBEAT_SECONDS": "1",
             "IPO_PULL_SECONDS": "1", "IPO_CP_URL": self.cp_url,
             "IPO_ACCESS_LOG": str(self.access_log), "IPO_TRAFFIC_SECONDS": "1",
-            "IPO_CP_EMAIL": ADMIN[0], "IPO_CP_PASSWORD": ADMIN[1]})
+            "IPO_CP_EMAIL": agent_login(self.name)[0],
+            "IPO_CP_PASSWORD": agent_login(self.name)[1]})
 
     def start_keepalived(self) -> None:
         binary = tools.keepalived()
@@ -322,6 +328,7 @@ class ControlPlane:
             "IPO_DATABASE_URL": self.dsn, "IPO_PLATFORM": str(REPO / "platform.yaml"),
             "IPO_JWT_SECRET": JWT_SECRET, "IPO_CLOUD": "fake", "IPO_SIGNING_KEY": self.seed,
             "IPO_MIGRATE": "1", "IPO_ADMIN_EMAIL": ADMIN[0], "IPO_ADMIN_PASSWORD": ADMIN[1],
+            "IPO_USERS_FILE": str(self.users_file()),
             "IPO_BIND": f"{MGMT_CLIENT}:8000", "IPO_VIP": self.plat["network"]["vip"],
             "IPO_AGENTS": ",".join(f"{g}=http://{self.plat['network']['hosts'][g]['mgmt']}:8443"
                                    for g in ("gw-a", "gw-b")),
@@ -333,6 +340,14 @@ class ControlPlane:
                                body={"email": ADMIN[0], "password": ADMIN[1]})
         assert code == 200, body
         self.token = body["access_token"]
+
+    def users_file(self) -> Path:
+        """The agents' accounts, as the Ansible role writes them: role gateway, one gateway each."""
+        path = self.lab.workdir / "users.json"
+        path.write_text(json.dumps([
+            {"email": agent_login(g)[0], "password": agent_login(g)[1], "role": "gateway",
+             "gateway": g} for g in ("gw-a", "gw-b")]))
+        return path
 
     def stop(self) -> None:
         os.killpg(self.proc.pid, signal.SIGTERM)

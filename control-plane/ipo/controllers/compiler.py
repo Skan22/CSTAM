@@ -31,7 +31,10 @@ CANARY_BACKEND = "http://127.0.0.1:8082"  # answered by the gateway agent itself
 MIDDLEWARES: dict[str, dict[str, Any]] = {
     "secure-headers": {"headers": {
         "stsSeconds": 31536000, "contentTypeNosniff": True, "frameDeny": True}},
-    "rate-limit": {"rateLimit": {"average": 100, "burst": 50}},
+    # Per team, not per client: the bucket is keyed by the Host header, so one team cannot use up
+    # the gateways' capacity for the others, however many clients it brings.
+    "rate-limit": {"rateLimit": {"average": 200, "burst": 100,
+                                 "sourceCriterion": {"requestHost": True}}},
     "compress": {"compress": {}},
 }
 

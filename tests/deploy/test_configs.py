@@ -205,7 +205,9 @@ def test_the_users_file_is_what_the_control_plane_accepts() -> None:
     v = hostvars("cp-1", "control_plane")
     users = json.loads(render.render("control_plane", "users.json.j2", **v))
     assert {u["email"] for u in users} == {"agent-gw-a@cstam.felcloud.tn", "agent-gw-b@cstam.felcloud.tn"}
-    assert all(set(u) == {"email", "password", "role"} and u["role"] == "operator" for u in users)
+    assert all(set(u) == {"email", "password", "role", "gateway"} and u["role"] == "gateway"
+               for u in users)  # an agent is bound to its gateway, not an operator
+    assert {u["gateway"] for u in users} == {"gw-a", "gw-b"}
 
 
 def test_the_control_plane_env_points_at_both_agents_and_the_same_origin_grafana() -> None:
@@ -336,3 +338,38 @@ def test_alloy_loads_each_hosts_configuration(role: str, tmp_path: Path) -> None
     # group when Alloy takes longer than 3 s to flush and stop.
     assert p.returncode in (124, 137, -9), p.stderr[-3000:]
 
+
+
+def test_the_placeholder_page_unit_is_valid_and_the_page_answers(tmp_path: Path) -> None:
+    """Every sandbox serves this until its team replaces it, so the route probe finds something."""
+    import http.client
+    import socket
+    import sys
+    import time
+
+    role = render.REPO / "ansible" / "roles" / "image_bake" / "files"
+    unit = (role / "ipo-sandbox-hello.service").read_text()
+    f = write(tmp_path / "ipo-sandbox-hello.service",
+              re.sub(r"^(Exec\w+=-?)/\S+ /\S+", r"\1/usr/bin/true", unit, flags=re.M))
+    p = subprocess.run([str(tool("systemd-analyze")), "verify", "--man=no", str(f)],
+                       capture_output=True, text=True)
+    assert p.returncode == 0 and not [ln for ln in p.stderr.splitlines()
+                                      if ln.strip() and "is not executable" not in ln], p.stderr
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    proc = subprocess.Popen([sys.executable, str(role / "ipo-sandbox-hello.py"), str(port)])
+    try:
+        for _ in range(200):
+            try:
+                c = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+                c.request("GET", "/", headers={"Host": "alpha.cstam.felcloud.tn"})
+                r = c.getresponse()
+                body = r.read().decode()
+                break
+            except OSError:
+                time.sleep(0.1)
+        assert r.status == 200 and "sandbox ok host=alpha.cstam.felcloud.tn" in body, body
+    finally:
+        proc.terminate()
+        proc.wait(5)

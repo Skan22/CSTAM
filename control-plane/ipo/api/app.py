@@ -239,6 +239,7 @@ def create_app(deps: AppDeps) -> FastAPI:
     viewer = Depends(auth.require("viewer"))
     operator = Depends(auth.require("operator"))
     admin = Depends(auth.require("admin"))
+    agent = Depends(auth.require_agent())
 
     def settings_now(conn: psycopg.Connection) -> Settings:
         return runtime_settings.effective(conn, deps.settings)
@@ -278,7 +279,7 @@ def create_app(deps: AppDeps) -> FastAPI:
             raise Problem(401, "unauthorized", "Unauthorized", "invalid email or password",
                           headers={"WWW-Authenticate": "Bearer"})
         token = auth.issue(deps.jwt_secret, deps.token_ttl_seconds, body.email, who.role,
-                           who.team_id)
+                           who.team_id, who.gateway)
         return models.Token(access_token=token, expires_in=deps.token_ttl_seconds, role=who.role)
 
     @app.get("/v1/me", tags=["auth"], response_model=models.Me)
@@ -466,7 +467,7 @@ def create_app(deps: AppDeps) -> FastAPI:
 
     @app.post("/v1/gateways/{name}/heartbeat", tags=["gateways"], status_code=204,
               responses={404: {"description": "Not a configured gateway"}})
-    def heartbeat(name: str, body: models.Heartbeat, _: Principal = operator,
+    def heartbeat(name: str, body: models.Heartbeat, _: Principal = agent,
                   conn: psycopg.Connection = Db) -> Response:
         """Sent by each gateway agent every few seconds with its VRRP state and live version."""
         if name not in deps.settings.gateways:
@@ -497,7 +498,7 @@ def create_app(deps: AppDeps) -> FastAPI:
     # ---------------------------------------------------------- traffic
     @app.post("/v1/gateways/{name}/traffic", tags=["traffic"], status_code=204,
               response_class=Response, responses={404: {"description": "Unknown gateway"}})
-    def report_traffic(name: str, body: models.TrafficReport, _: Principal = operator,
+    def report_traffic(name: str, body: models.TrafficReport, _: Principal = agent,
                        conn: psycopg.Connection = Db) -> Response:
         """Sent by each gateway agent every few seconds with what Traefik served."""
         if name not in deps.settings.gateways:
@@ -567,7 +568,7 @@ def create_app(deps: AppDeps) -> FastAPI:
     # ----------------------------------------------------------- config
     @app.get("/v1/config/latest", tags=["config"], response_model=models.ConfigEnvelope,
              responses={404: {"description": "No config has been compiled yet"}})
-    def config_latest(_: Principal = operator,
+    def config_latest(_: Principal = agent,
                       conn: psycopg.Connection = Db) -> models.ConfigEnvelope:
         """What a gateway agent's pull loop fetches in case a push was missed."""
         r = conn.execute("SELECT version, sha256, signature, body FROM config_versions"

@@ -17,6 +17,7 @@ class Settings:
     sandbox_image: str = "ipo-sandbox-v1"
     sandbox_flavor: str = "m1.tiny"
     backend_port: int = 80
+    route_middlewares: tuple[str, ...] = ("rate-limit",)  # on every team's route
     gateways: tuple[str, ...] = ("gw-a", "gw-b")
     debounce_seconds: float = 0.03  # first route change waits this long for company
     heartbeat_fresh_seconds: float = 15  # three missed beats at the agent's default of 5 s
