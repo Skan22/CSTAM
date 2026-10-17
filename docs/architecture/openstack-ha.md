@@ -11,8 +11,8 @@ fails: what each failure costs, how it is detected, and what the evidence is.
 
 | Objective | Target | Measured (lab) |
 | --- | --- | --- |
-| Gateway VM dies | VIP moves in about 2 s | **0.52 to 0.66 s** worst request gap (11 runs) |
-| Traefik crashes or hangs | about 4 s | **1.2 to 1.7 s** (SIGKILL, SIGTERM, 12 runs) |
+| Gateway VM dies | VIP moves in about 2 s | **0.52 to 0.72 s** worst request gap (22 runs) |
+| Traefik crashes or hangs | about 4 s | **1.2 to 2.1 s** (SIGKILL, SIGTERM, 24 runs) |
 | keepalived stopped cleanly | immediate | **0.12 s** |
 | Manual failover through the control plane | under 1.5 s | **0.12 s** |
 | Old MASTER comes back | no second outage | **0 s**, no flap (nopreempt) |

@@ -57,7 +57,12 @@ internet, TCP from the internet to anything but the gateways, ports outside the 
 | `IPO_AGENT_CERT`, `IPO_AGENT_KEY`, `IPO_AGENT_CA` | mTLS material for talking to agents |
 | `IPO_VIP` | the VIP, for the registration probe |
 | `IPO_GRAFANA_URL` | Grafana to embed: an `http(s)` URL, or a path such as `/grafana` when one front serves both |
-| `IPO_WORKERS` | saga worker threads (default 24) |
+| `IPO_WORKERS` | saga worker threads (default 24); idle workers sleep until a job is queued, so many cost nothing |
+| `IPO_DNS` | `wildcard` (default: `*.<domain>` is set once to the floating IP, nothing per team) or `rfc2136` (one A record per team, published and withdrawn with signed dynamic updates) |
+| `IPO_DNS_SERVER`, `IPO_DNS_TARGET`, `IPO_DNS_ZONE`, `IPO_DNS_TTL` | with `rfc2136`: the server (`host[:port]`), the address every record points at (the floating IP), the zone (default: the platform domain) and the TTL (30) |
+| `IPO_DNS_TSIG_NAME`, `IPO_DNS_TSIG_SECRET`, `IPO_DNS_TSIG_ALGORITHM` | TSIG key (base64 secret, `hmac-sha256` by default); without one, updates are unsigned |
+| `IPO_RELEASE_VERIFY_SECONDS` | how long teardown waits for the cloud to finish deleting a VM before calling it a leftover (default 40) |
+| `IPO_FAKE_BOOT_SECONDS`, `IPO_FAKE_STATE` | with `IPO_CLOUD=fake`: how long a fake server takes to boot, and a file that keeps the fake cloud across restarts (labs only) |
 | `IPO_BIND` | `host:port` for the API (default `0.0.0.0:8000`) |
 | `IPO_MIGRATE` | `1` to run migrations at start |
 | `IPO_ADMIN_EMAIL`, `IPO_ADMIN_PASSWORD` | create or reset this admin at start |
@@ -86,6 +91,8 @@ internet, TCP from the internet to anything but the gateways, ports outside the 
 
 `GET`/`PATCH /v1/settings` (admin) changes `pool_target`, `reserve_free_ips`, `lease_ttl_seconds`,
 `quarantine_seconds` and `max_parallel_boots` live, with the previous value and the actor kept.
+Lowering `pool_target` discards the idle warm VMs beyond it; teardown, the reconciler and the pool
+read `quarantine_seconds` at the time they act.
 
 ## Ansible and Pulumi settings
 

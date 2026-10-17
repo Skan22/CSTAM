@@ -110,7 +110,7 @@ class Job(BaseModel):
 
 
 class Pool(BaseModel):
-    size: int
+    size: int = Field(description="Warm VMs ready to be claimed: booted and unclaimed")
     target: int
     free: int
     leased: int

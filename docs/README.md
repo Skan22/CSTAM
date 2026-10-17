@@ -15,7 +15,7 @@ Start here, then follow the section you need.
 | Document | Contents |
 | --- | --- |
 | [Control plane](architecture/control-plane.md) | data model, lease state machine, registration and teardown sagas, controllers, reconciler rules, API, auth |
-| [Security](architecture/security.md) | trust boundaries, threat and defence table, secrets and key handling |
+| [Security](architecture/security.md) | trust boundaries, sandbox isolation, STRIDE per component, what teardown guarantees, secrets, known gaps |
 | [Decisions (ADRs)](adr) | [2 lease state machine](adr/0002-lease-state-machine.md), [3 one policy, two enforcers](adr/0003-one-network-policy-two-enforcers.md), [4 rootless Quadlets](adr/0004-rootless-quadlets-on-the-host-network.md) |
 
 ## Guides
@@ -32,9 +32,10 @@ Start here, then follow the section you need.
 
 | | |
 | --- | --- |
-| API | [OpenAPI](api/openapi.json), [Postman collection](api/ipo.postman_collection.json) |
+| API | [Integration guide](api/integration.md) (auth, conventions, errors, every endpoint, events, DNS, client recipes), [OpenAPI](api/openapi.json), [Postman collection](api/ipo.postman_collection.json) |
 | Runbooks | [alerts](runbooks/alerts.md), [manual failover](runbooks/manual-failover.md), [promote replica](runbooks/promote-replica.md), [rotate certificates](runbooks/rotate-certs.md), [rebuild from zero](runbooks/rebuild-from-zero.md), [restore backup](runbooks/restore-backup.md) |
-| Reports | [isolation results](reports/isolation.md), [FelCloud survey](reports/felcloud-survey.md) |
+| Reports | [benchmarks](reports/benchmarks.md), [isolation results](reports/isolation.md), [FelCloud survey](reports/felcloud-survey.md) |
+| Presenting | [jury presentation](presentation/jury-deck.md), [demo video script](presentation/demo-script.md) |
 | Components | [gateway agent](../gateway-agent/README.md), [dashboard](../dashboard/README.md), [Ansible](../ansible/README.md), [Quadlets](../quadlets/README.md), [Pulumi](../infra/pulumi/README.md), [system tests](../tests/README.md) |
 | Diagrams | sources and images in [`diagrams/`](diagrams) |
 

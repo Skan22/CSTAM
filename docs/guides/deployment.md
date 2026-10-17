@@ -98,6 +98,17 @@ unit follows are in [`quadlets/README.md`](../../quadlets/README.md). Images are
 `podman-auto-update.timer` follows it, and `Notify=healthy` makes a unit active only once its
 health check passes, so an image that never becomes healthy is rolled back.
 
+## DNS
+
+Teams are reached by `<slug>.<domain>` (`domain` in `platform.yaml`). FelCloud has no DNS service,
+so the default needs one record, made once by whoever runs the zone: **`*.<domain> A <floating IP
+of the VIP>`**. The platform then publishes nothing per team (`control_plane_dns_mode: wildcard`).
+If the zone is yours and takes dynamic updates (BIND, Knot, PowerDNS, CoreDNS), set
+`control_plane_dns_mode: rfc2136` with the server, the floating IP as `control_plane_dns_target`,
+a TSIG key name and its secret (`ipo_secrets.dns_tsig_secret`): each registration then adds the
+team's A record and each teardown removes it, and the reconciler repairs any drift. Without any
+DNS at all, `curl -H 'Host: <slug>.<domain>' http://<floating IP>/` reaches the same sandbox.
+
 ## Verify
 
 1. `GET https://<cp-1 mgmt IP>:8000/readyz` returns 200 on both control-plane hosts.

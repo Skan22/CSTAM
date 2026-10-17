@@ -758,7 +758,10 @@ export interface components {
             leased: number;
             /** Quarantined */
             quarantined: number;
-            /** Size */
+            /**
+             * Size
+             * @description Warm VMs ready to be claimed: booted and unclaimed
+             */
             size: number;
             /** Target */
             target: number;

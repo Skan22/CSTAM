@@ -651,6 +651,7 @@
             "type": "integer"
           },
           "size": {
+            "description": "Warm VMs ready to be claimed: booted and unclaimed",
             "title": "Size",
             "type": "integer"
           },
