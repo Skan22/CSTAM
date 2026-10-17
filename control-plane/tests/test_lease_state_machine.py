@@ -60,6 +60,7 @@ class LeaseMachine(RuleBasedStateMachine):
         ]
         self.state: dict[str, str] = {ip: "free" for ip in ADDRS}
         self.team_of: dict[str, str | None] = {ip: None for ip in ADDRS}
+        self.vm: dict[str, bool] = {ip: False for ip in ADDRS}  # has a VM attached
 
     def teardown(self) -> None:
         self.conn.close()
@@ -74,6 +75,8 @@ class LeaseMachine(RuleBasedStateMachine):
 
     def _set(self, ip: str, state: str, team: str | None) -> None:
         self.state[ip] = state
+        if state in ("free", "quarantined"):
+            self.vm[ip] = False
         if state in ("free", "pooled", "quarantined"):
             team = None
         self.team_of[ip] = team
@@ -106,12 +109,19 @@ class LeaseMachine(RuleBasedStateMachine):
     def claim(self, data: Any) -> None:
         team = data.draw(st.sampled_from(self._free_teams()))
         got = leases.claim_pooled(self.conn, team_id=team, expires_at=_soon(self.conn))
-        pooled = self._ips("pooled")
-        if not pooled:
+        ready = [ip for ip in self._ips("pooled") if self.vm[ip]]  # a VM still booting is no use
+        if not ready:
             assert got is None
         else:
-            assert got and got.ip == pooled[0]
+            assert got and got.ip == ready[0]
             self._set(got.ip, "leased", team)
+
+    @rule(ip=st.sampled_from(ADDRS))
+    def boot(self, ip: str) -> None:
+        """The pool manager (or a cold-path saga) attaches the VM it booted."""
+        if self.state[ip] in ("pooled", "leased"):
+            leases.attach_resources(self.conn, ip, port_id=f"port-{ip}", server_id=f"srv-{ip}")
+            self.vm[ip] = True
 
     @rule(ip=st.sampled_from(ADDRS))
     def return_to_pool(self, ip: str) -> None:

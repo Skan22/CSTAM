@@ -65,6 +65,14 @@ def counts(conn: psycopg.Connection) -> dict[str, int]:
     return {s: n for s, n in conn.execute("SELECT state::text, count(*) FROM leases GROUP BY 1")}
 
 
+def ready_pooled(conn: psycopg.Connection) -> int:
+    """Warm VMs a team could claim right now: pooled leases whose VM is up (the pool manager
+    attaches it only once Nova reports it ACTIVE)."""
+    row = conn.execute("SELECT count(*) FROM leases WHERE state = 'pooled'"
+                       " AND server_id IS NOT NULL").fetchone()
+    return int(row[0]) if row else 0
+
+
 def seed(conn: psycopg.Connection, addresses: list[str]) -> int:
     """Create one free lease per pool address. Existing rows are left alone."""
     with conn.transaction():
@@ -105,6 +113,7 @@ def claim_pooled(conn: psycopg.Connection, *, team_id: str, expires_at: datetime
         with conn.transaction():
             row = conn.execute(
                 "WITH pick AS (SELECT ip FROM leases WHERE state = 'pooled'"
+                "              AND server_id IS NOT NULL"  # a VM still booting is not warm yet
                 "              ORDER BY ip FOR UPDATE SKIP LOCKED LIMIT 1)"
                 " UPDATE leases l SET state = 'leased', team_id = %s, expires_at = %s"
                 f" FROM pick WHERE l.ip = pick.ip RETURNING {_COLS_L}",

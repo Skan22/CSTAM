@@ -57,6 +57,9 @@ def test_claim_pooled_takes_a_pooled_lease_only(conn: psycopg.Connection) -> Non
     assert leases.claim_pooled(conn, team_id=team, expires_at=in_one_hour()) is None
     pooled = leases.reserve_free(conn)
     assert pooled
+    # the address is reserved but its VM is still booting: not warm, so not claimable
+    assert leases.claim_pooled(conn, team_id=team, expires_at=in_one_hour()) is None
+    leases.attach_resources(conn, pooled.ip, port_id="p", server_id="s")
     claimed = leases.claim_pooled(conn, team_id=team, expires_at=in_one_hour())
     assert claimed and claimed.ip == pooled.ip and claimed.state == "leased"
     assert claimed.team_id == team
@@ -65,7 +68,9 @@ def test_claim_pooled_takes_a_pooled_lease_only(conn: psycopg.Connection) -> Non
 def test_return_to_pool_undoes_a_claim(conn: psycopg.Connection) -> None:
     leases.seed(conn, ADDRS)
     team = make_team(conn)
-    leases.reserve_free(conn)
+    booted = leases.reserve_free(conn)
+    assert booted
+    leases.attach_resources(conn, booted.ip, port_id="p", server_id="s")
     claimed = leases.claim_pooled(conn, team_id=team, expires_at=in_one_hour())
     assert claimed
     back = leases.return_to_pool(conn, claimed.ip)

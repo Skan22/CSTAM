@@ -86,3 +86,21 @@ def test_invalid_slug_is_rejected(dsn: str) -> None:
     settings, _, connect = make_env(dsn, pooled=1)
     with connect() as c, pytest.raises(ValueError, match="slug"):
         register_team(c, settings, slug="Not Valid!", owner="o", idempotency_key="1")
+
+
+def test_a_pooled_address_whose_vm_is_still_booting_is_not_warm(dsn: str) -> None:
+    """The pool manager reserves an address before Nova has booted its VM (which takes tens of
+    seconds on a real cloud). A registration must not claim that and wait for the boot, calling
+    it warm: it takes the cold path on another address and leaves the booting VM for the pool."""
+    settings, _, connect = make_env(dsn, pooled=1)
+    with connect() as c:
+        booting = leases.reserve_free(c)  # pooled, VM not attached yet
+        assert booting and booting.state == "pooled" and booting.server_id is None
+        ready_before = leases.ready_pooled(c)
+        reg = register_team(c, settings, slug="alpha", owner="ada", idempotency_key="k1")
+        assert ready_before == 1
+        assert reg.path == "warm" and reg.ip != booting.ip  # took the ready VM
+        reg2 = register_team(c, settings, slug="beta", owner="ada", idempotency_key="k2")
+        assert reg2.path == "cold" and reg2.ip != booting.ip  # none ready: not the booting one
+        assert leases.get(c, booting.ip).state == "pooled"
+        assert leases.ready_pooled(c) == 0

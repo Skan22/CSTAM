@@ -139,3 +139,30 @@ def test_a_server_that_errors_while_booting_is_a_cloud_error(cloud: OpenStackClo
     cloud.conn.compute.final_status = "ERROR"
     with pytest.raises(CloudError):
         cloud.ensure_server(name="ipo-vm-a", port_id=p.id)
+
+
+def test_a_server_nova_is_deleting_or_has_deleted_is_not_listed_or_reused(
+    cloud: OpenStackCloud,
+) -> None:
+    """Nova answers a delete at once, keeps the server ACTIVE with task_state `deleting` for
+    seconds, and then keeps listing it as DELETED. Counting those made every teardown wait out its
+    verification, and an address recycled under the same deterministic name would have been
+    "found" as a dead server and never booted."""
+    p = cloud.ensure_port(name="ipo-port-a", ip="10.20.0.11")
+    first = cloud.ensure_server(name="ipo-vm-a", port_id=p.id)
+    stored = cloud.conn.compute.store[first.id]
+    stored.task_state = "deleting"
+    assert cloud.list_servers() == []
+    stored.task_state = None
+    stored.status = "DELETED"
+    assert cloud.list_servers() == []
+    second = cloud.ensure_server(name="ipo-vm-a", port_id=p.id)  # the address came back round
+    assert second.id != first.id
+    assert [s.id for s in cloud.list_servers()] == [second.id]
+
+
+def test_building_servers_carry_their_status(cloud: OpenStackCloud) -> None:
+    p = cloud.ensure_port(name="ipo-port-a", ip="10.20.0.11")
+    s = cloud.ensure_server(name="ipo-vm-a", port_id=p.id)
+    cloud.conn.compute.store[s.id].status = "BUILD"
+    assert [x.status for x in cloud.list_servers()] == ["BUILD"]

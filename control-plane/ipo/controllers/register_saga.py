@@ -48,6 +48,7 @@ class Deps:
     settings: Settings
     dns: Dns = field(default_factory=WildcardDns)
     converge_timeout: float = 30.0
+    release_verify_seconds: float = 0.0  # how long to wait for the cloud to finish deleting
     probe_timeout: float = 30.0
 
 

@@ -5,7 +5,7 @@ from ipo.adapters.openstack.base import port_name, server_name
 from ipo.controllers.reconciler import Reconciler
 from ipo.domain import leases
 from ipo.domain.registration import register_team
-from tests.helpers import FakeGateways, make_env
+from tests.helpers import ADDRS, FakeGateways, make_env
 from tests.test_teardown import Env, register_active
 
 
@@ -161,3 +161,32 @@ def test_a_failing_cloud_call_aborts_the_cycle_and_the_next_one_repairs(dsn: str
     with pytest.raises(Exception, match="injected"):
         rec(env).run_once()
     assert repairs(env) == {"orphan_port": 1}  # the next cycle repairs it
+
+
+def test_a_vm_that_is_still_building_is_not_an_orphan_however_slow_the_boot(dsn: str) -> None:
+    """On the real cloud a boot takes longer than the 30 s grace, and until Nova attaches the VM
+    to its port the VM cannot be matched to an address by port. It is still not an orphan."""
+    from dataclasses import replace
+
+    settings, cloud, connect = make_env(dsn, pooled=0)
+    with connect() as c:
+        pooled = leases.reserve_free(c)  # the pool manager's reservation, VM on its way
+        assert pooled
+
+    def slow_vm(ip: str, sid: str) -> None:
+        cloud.servers[sid] = replace(
+            cloud.ensure_server(name=server_name(ip), port_id="not-attached-yet"),
+            id=sid, status="BUILD", created_at=cloud.clock() - 120)
+
+    slow_vm(pooled.ip, "srv-pooled")
+    free_ip = next(a for a in ADDRS if a != pooled.ip)
+    slow_vm(free_ip, "srv-stray")  # a boot nobody is waiting for: the address is free
+    for sid in [s.id for s in cloud.servers.values() if s.status != "BUILD"]:
+        del cloud.servers[sid]
+    patient = Reconciler(cloud, settings, connect, grace_seconds=30)
+    assert patient.run_once()["orphan_vm"] == 0 and len(cloud.servers) == 2
+    # one that never finishes is stuck, not slow; the one a lease is waiting for is left to the
+    # pool manager, which gives up on it by itself
+    impatient = Reconciler(cloud, settings, connect, grace_seconds=30, build_limit=60)
+    assert impatient.run_once()["orphan_vm"] == 1
+    assert set(cloud.servers) == {"srv-pooled"}

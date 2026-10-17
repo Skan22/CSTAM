@@ -12,7 +12,7 @@ import pytest
 
 from ipo import runtime_settings
 from ipo.adapters.dns import DnsError, FakeDns
-from ipo.adapters.openstack.base import port_name, server_name
+from ipo.adapters.openstack.base import Server, port_name, server_name
 from ipo.adapters.openstack.fake import FakeCloud
 from ipo.controllers.reaper import Reaper
 from ipo.controllers.reconciler import Reconciler
@@ -230,3 +230,54 @@ def test_the_quarantine_an_admin_sets_at_runtime_applies_to_the_next_teardown(ds
         row = c.execute("SELECT extract(epoch FROM quarantined_until - now()) FROM leases"
                         " WHERE ip = %s", (ip,)).fetchone()
     assert row and 5 < float(row[0]) <= 7
+
+
+class LaggyCloud(FakeCloud):
+    """Deletes like Nova: the call returns at once and the VM keeps being listed for a while."""
+
+    def __init__(self, lag: int) -> None:
+        super().__init__()
+        self.lag = lag
+        self._doomed: dict[str, int] = {}
+
+    def delete_server(self, server_id: str) -> None:
+        self._doomed.setdefault(server_id, self.lag)
+
+    def list_servers(self, tag: str = "ipo") -> list[Server]:
+        for sid in list(self._doomed):
+            if self._doomed[sid] <= 0:
+                self.servers.pop(sid, None)
+                del self._doomed[sid]
+            else:
+                self._doomed[sid] -= 1
+        return super().list_servers(tag)
+
+
+@pytest.mark.parametrize(("wait", "outcome"), [(0.0, "failed"), (30.0, "succeeded")])
+def test_teardown_waits_for_a_cloud_that_deletes_asynchronously(
+    dsn: str, monkeypatch: pytest.MonkeyPatch, wait: float, outcome: str,
+) -> None:
+    """On a real cloud the VM is still listed for seconds after the delete is accepted. That is
+    not a leftover: the release waits for it to go, and the address is only recycled then.
+    Without the wait (what the first real-cloud run did) every teardown failed into the
+    reconciler's minute-long cycle."""
+    from ipo.controllers.pool import PoolManager
+
+    monkeypatch.setattr("ipo.domain.teardown.time.sleep", lambda s: None)  # poll without waiting
+    settings, _, connect = make_env(dsn, quarantine_seconds=0)
+    cloud, gw, dns = LaggyCloud(lag=8), FakeGateways(), FakeDns()
+    PoolManager(cloud, settings, connect).reconcile(target=1)
+    team, ip, _ = register((settings, cloud, connect), gw, dns)
+    with connect() as c:
+        enqueue_teardown(c, team, reason="api", actor="ada")
+    runner_ = build_runner(
+        connect, Deps(cloud, gw, FakeProber(), settings, dns, release_verify_seconds=wait),
+        worker_id="w", sleep=lambda s: None, max_job_attempts=1)
+    result = runner_.run_once()
+    if outcome == "succeeded":
+        assert result == "succeeded"
+        assert not [s for s in cloud.list_servers() if s.name == server_name(ip)]
+        with connect() as c:
+            assert leases.get(c, ip).state in ("quarantined", "free")
+    else:
+        assert result in ("failed", "compensated")  # the VM "is still there": not recycled

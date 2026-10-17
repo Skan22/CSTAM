@@ -30,7 +30,8 @@ def _reset(conn: psycopg.Connection, pooled: int) -> list[str]:
     ]
     leases.seed(conn, [f"10.20.{i // 250}.{i % 250 + 1}" for i in range(ADDRESSES)])
     conn.execute(
-        "UPDATE leases SET state = 'pooled' WHERE ip IN"
+        "UPDATE leases SET state = 'pooled', server_id = 'srv-' || ip, port_id = 'port-' || ip"
+        " WHERE ip IN"
         " (SELECT ip FROM leases ORDER BY ip LIMIT %s)", (pooled,))
     return team_ids
 

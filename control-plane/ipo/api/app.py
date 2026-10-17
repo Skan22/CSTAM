@@ -412,7 +412,7 @@ def create_app(deps: AppDeps) -> FastAPI:
     def pool(_: Principal = viewer, conn: psycopg.Connection = Db) -> models.Pool:
         c = leases.counts(conn)
         return models.Pool(
-            size=c.get("pooled", 0), target=settings_now(conn).pool_target,
+            size=leases.ready_pooled(conn), target=settings_now(conn).pool_target,
             free=c.get("free", 0), leased=c.get("leased", 0), draining=c.get("draining", 0),
             quarantined=c.get("quarantined", 0))
 

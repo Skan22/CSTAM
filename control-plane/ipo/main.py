@@ -21,6 +21,8 @@ Configuration comes from the environment:
                        IPO_DNS_TSIG_NAME / _SECRET / _ALGORITHM)
     IPO_GRAFANA_URL    Grafana the dashboard may embed: an http(s) URL, or a path such as /grafana
                        when the same front serves both (optional)
+    IPO_RELEASE_VERIFY_SECONDS  how long teardown waits for the cloud to finish deleting a VM
+                       before calling it a leftover (default 40)
     IPO_WORKERS        saga worker threads (default 24)
     IPO_BIND           host:port for the API (default 0.0.0.0:8000)
     IPO_MIGRATE        `1` to run migrations at start
@@ -167,7 +169,8 @@ def build_runtime(
     pusher = Pusher(agents, connect)
     if dns is None:
         dns = dnsmod.from_env(env, base.domain)
-    deps = Deps(cloud, DbGateways(base), prober, base, dns)
+    deps = Deps(cloud, DbGateways(base), prober, base, dns,
+                release_verify_seconds=float(env.get("IPO_RELEASE_VERIFY_SECONDS", "40")))
     app = create_app(AppDeps(connect, base, jwt_secret=env["IPO_JWT_SECRET"],
                              grafana_url=grafana_url(env.get("IPO_GRAFANA_URL", "")),
                              failover=failover if agents else None))

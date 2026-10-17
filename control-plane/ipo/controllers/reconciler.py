@@ -16,7 +16,7 @@ import psycopg
 
 from ipo import metrics, runtime_settings
 from ipo.adapters.dns import Dns, DnsError, WildcardDns
-from ipo.adapters.openstack.base import Cloud, Port, Server
+from ipo.adapters.openstack.base import Cloud, Port, Server, ip_of_server_name
 from ipo.controllers.compiler import ConfigVersion
 from ipo.controllers.workers import run_leader
 from ipo.domain import events, leases
@@ -33,6 +33,8 @@ from ipo.settings import Settings
 
 log = logging.getLogger("ipo.reconciler")
 
+BUILDING = ("BUILD", "REBUILD", "BUILDING")
+
 RULES = ("orphan_vm", "orphan_port", "vm_gone", "stale_route", "stuck_lease", "stuck_team",
          "gateway_behind", "stale_dns", "missing_dns")
 
@@ -42,7 +44,9 @@ class Reconciler:
         self, cloud: Cloud, settings: Settings, connect: Callable[[], psycopg.Connection], *,
         repush: Callable[[ConfigVersion], object] | None = None, grace_seconds: float = 30.0,
         interval: float = 60.0, now: Callable[[], float] = time.time, dns: Dns | None = None,
+        build_limit: float = 900.0,
     ) -> None:
+        self.build_limit = build_limit  # a VM building for longer than this is stuck, not slow
         self.dns = dns or WildcardDns()
         self.cloud = cloud
         self.settings = settings
@@ -76,8 +80,8 @@ class Reconciler:
         return dict(repairs)
 
     # -- rules
-    def _old(self, created_at: float) -> bool:
-        return self.now() - created_at >= self.grace
+    def _old(self, created_at: float, limit: float | None = None) -> bool:
+        return self.now() - created_at >= (self.grace if limit is None else limit)
 
     def _orphans(
         self, servers: list[Server], ports: list[Port],
@@ -90,7 +94,12 @@ class Reconciler:
 
         port_ip = {p.id: p.ip for p in ports}
         for s in servers:
-            if unowned(port_ip.get(s.port_id)) and self._old(s.created_at):
+            # A VM that is still booting may not be attached to its port yet, and a slow boot takes
+            # longer than the grace period: neither makes it an orphan. Its name says which
+            # address it belongs to, so that decides when the port does not.
+            ip = port_ip.get(s.port_id) or ip_of_server_name(s.name)
+            building = s.status in BUILDING and not self._old(s.created_at, self.build_limit)
+            if unowned(ip) and self._old(s.created_at) and not building:
                 self.cloud.delete_server(s.id)
                 repairs["orphan_vm"] += 1
         for p in ports:

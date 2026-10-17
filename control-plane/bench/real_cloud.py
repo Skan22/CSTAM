@@ -111,6 +111,7 @@ def main() -> int:
     ap.add_argument("--clouds", type=Path, required=True)
     ap.add_argument("--cloud", default="")
     ap.add_argument("--count", type=int, default=10, help="teams per burst")
+    ap.add_argument("--cold-rounds", type=int, default=2, help="cold bursts to run")
     ap.add_argument("--out", type=Path, default=Path("real.jsonl"))
     args = ap.parse_args()
 
@@ -191,31 +192,36 @@ def main() -> int:
             clean()
             emit("real-teardown", teams=n, seconds=round(time.monotonic() - t0, 1),
                  delete_server=stats(cloud.take("delete_server")), delete_port=stats(cloud.take("delete_port")))
-            # 3. n simultaneous registrations with no warm VM: each boots its own
+            # 3. n simultaneous registrations with no warm VM: each boots its own. The pool the
+            # warm burst emptied has refilled by now; let it, then discard it, so the cold boots
+            # compete with nothing (twenty concurrent boots are slower than ten).
+            settle_pool(n)
             api("PATCH", "/v1/settings", {"pool_target": 0})
-            time.sleep(5)
-            while api("GET", "/v1/pool")[1]["size"] > 0:
+            while (c := api("GET", "/v1/ipam")[1]["counts"]).get("pooled", 0) or c.get("draining", 0):
                 time.sleep(1)
-            cloud.take("ensure_server")
-            cold: Burst = reg.run(n, "cold")
-            emit("real-burst-cold", **cold.summary(), nova_boot=stats(cloud.take("ensure_server")))
-            assert not cold.failures, cold.summary()
-            # 4. teardown, then the time until the addresses are usable again
-            ips = {r.ip for r in cold.results}
-            t0 = time.monotonic()
-            clean()
-            torn = time.monotonic() - t0
-            freed: dict[str, float] = {}
-            while len(freed) < len(ips):
-                for lease in api("GET", "/v1/ipam")[1]["leases"]:
-                    if lease["ip"] in ips and lease["state"] == "free":
-                        freed.setdefault(lease["ip"], time.monotonic() - t0)
-                if time.monotonic() - t0 > 300:
-                    break
-                time.sleep(0.5)
-            emit("real-recycle", teams=n, quarantine_s=5, teardown_s=round(torn, 1),
-                 address_free=stats(list(freed.values())),
-                 delete_server=stats(cloud.take("delete_server")), delete_port=stats(cloud.take("delete_port")))
+            for rnd in range(args.cold_rounds):
+                cloud.take("ensure_server")
+                cold: Burst = reg.run(n, f"cold{rnd}")
+                emit("real-burst-cold", round=rnd, **cold.summary(),
+                     nova_boot=stats(cloud.take("ensure_server")))
+                assert not cold.failures, cold.summary()
+                # 4. teardown, then the time until the addresses are usable again
+                ips = {r.ip for r in cold.results}
+                t0 = time.monotonic()
+                clean()
+                torn = time.monotonic() - t0
+                freed: dict[str, float] = {}
+                while len(freed) < len(ips):
+                    for lease in api("GET", "/v1/ipam")[1]["leases"]:
+                        if lease["ip"] in ips and lease["state"] == "free":
+                            freed.setdefault(lease["ip"], time.monotonic() - t0)
+                    if time.monotonic() - t0 > 300:
+                        break
+                    time.sleep(0.5)
+                emit("real-recycle", round=rnd, teams=n, quarantine_s=5, teardown_s=round(torn, 1),
+                     address_free=stats(list(freed.values())),
+                     delete_server=stats(cloud.take("delete_server")),
+                     delete_port=stats(cloud.take("delete_port")))
         finally:
             rt.shutdown()
             left_s, left_p = real.list_servers(), real.list_ports()

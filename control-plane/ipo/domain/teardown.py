@@ -5,6 +5,8 @@ safe to repeat, so a crash halfway is finished by simply calling it again.
 """
 
 import json
+import time
+from collections.abc import Callable
 
 import psycopg
 
@@ -82,7 +84,7 @@ def drain_team(conn: psycopg.Connection, team_id: str) -> None:
 
 def release_team(
     conn: psycopg.Connection, cloud: Cloud, team_id: str, ip: str | None, *,
-    quarantine_seconds: float,
+    quarantine_seconds: float, verify_wait: float = 0.0,
 ) -> None:
     """Delete the VM then the port, quarantine the address, and check nothing was left. Does
     nothing if the address has meanwhile moved on to another team or back to the pool. Repeating
@@ -98,24 +100,36 @@ def release_team(
         _delete_resources(cloud, ip, lease)
     else:
         release_resources(conn, cloud, ip, quarantine_seconds=quarantine_seconds)
-    verify_released(conn, cloud, ip)
+    verify_released(conn, cloud, ip, wait=verify_wait)
 
 
 class NotSanitized(Exception):
     """An address was released but something of its old tenant is still around."""
 
 
-def verify_released(conn: psycopg.Connection, cloud: Cloud, ip: str) -> None:
-    """After a release: no VM or port is left on `ip`, and its lease carries nothing of the old
-    team. Raising makes the saga step retry, so an address is never recycled half-cleaned."""
-    leftovers = [f"server {s.id}" for s in cloud.list_servers() if s.name == server_name(ip)]
-    leftovers += [f"port {p.id}" for p in cloud.list_ports()
-                  if p.ip == ip or p.name == port_name(ip)]
+def _leftovers(conn: psycopg.Connection, cloud: Cloud, ip: str) -> list[str]:
+    found = [f"server {s.id}" for s in cloud.list_servers() if s.name == server_name(ip)]
+    found += [f"port {p.id}" for p in cloud.list_ports() if p.ip == ip or p.name == port_name(ip)]
     lease = leases.get(conn, ip)
     if lease.state not in ("quarantined", "free"):
-        leftovers.append(f"lease {lease.state}")
+        found.append(f"lease {lease.state}")
     if lease.team_id or lease.server_id or lease.port_id:
-        leftovers.append("lease still linked to its old team or VM")
+        found.append("lease still linked to its old team or VM")
+    return found
+
+
+def verify_released(conn: psycopg.Connection, cloud: Cloud, ip: str, *, wait: float = 0.0,
+                    interval: float = 1.0, sleep: Callable[[float], None] = time.sleep) -> None:
+    """After a release: no VM or port is left on `ip`, and its lease carries nothing of the old
+    team. Raising makes the saga step retry, so an address is never recycled half-cleaned.
+
+    Clouds delete asynchronously: Nova answers the delete at once and keeps listing the VM for
+    seconds. `wait` is how long to keep looking before calling that a leftover."""
+    deadline = time.monotonic() + wait
+    leftovers = _leftovers(conn, cloud, ip)
+    while leftovers and time.monotonic() < deadline:
+        sleep(interval)
+        leftovers = _leftovers(conn, cloud, ip)
     if leftovers:
         raise NotSanitized(f"{ip} was released but still has: {', '.join(leftovers)}")
 
@@ -157,11 +171,20 @@ def release_resources(
 
 
 def _delete_resources(cloud: Cloud, ip: str, lease: leases.Lease) -> None:
-    # Delete by recorded id and by deterministic name: a crash between creating a resource and
-    # recording it must not leave an orphan behind.
-    for server in cloud.list_servers():
-        if server.id == lease.server_id or server.name == server_name(ip):
-            cloud.delete_server(server.id)
-    for port in cloud.list_ports():
-        if port.id == lease.port_id or port.name == port_name(ip):
-            cloud.delete_port(port.id)
+    """Delete the VM, then the port. By the recorded ids when there are some (two API calls, no
+    listing: listing every tagged resource costs a second or more on a real cloud, per team);
+    otherwise, when a crash came between creating a resource and recording it, by the
+    deterministic name. A stray the ids do not cover is caught by `verify_released`, whose retry
+    comes back here with the ids cleared."""
+    if lease.server_id:
+        cloud.delete_server(lease.server_id)
+    else:
+        for server in cloud.list_servers():
+            if server.name == server_name(ip):
+                cloud.delete_server(server.id)
+    if lease.port_id:
+        cloud.delete_port(lease.port_id)
+    else:
+        for port in cloud.list_ports():
+            if port.name == port_name(ip):
+                cloud.delete_port(port.id)

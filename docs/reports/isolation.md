@@ -58,8 +58,47 @@ plan's router joins edge-net and sandbox-net). `internet` in the policy means an
 can route there, sandboxes included. That is the public service every team already reaches
 through the floating IP.
 
+## Real FelCloud run
+
+`uv run python -m isolation.cloud_probe --clouds …` (2026-10-17, project `Default_Project_skan22`,
+about three minutes, [raw verdicts](isolation-real-cloud.json)) runs the same probe model against
+the real Neutron security groups that `pulumi up` created. It boots three throwaway probe VMs on
+`sandbox-net`, each with exactly the group a real machine of that kind has, and runs the probes
+from cloud-init; the platform's own VMs (gateways, control plane, relay, bastion) are the targets,
+stock images with nothing listening. The probe VMs, their ports, the floating IP used to read the
+verdicts back and the temporary group are deleted afterwards.
+
+| Probe VM | Group | Dials | Result |
+| --- | --- | --- | --- |
+| `sbx-a` | `sg-sandbox.sandbox` | its neighbour `sbx-b`: 17 ports (15 TCP, 2 UDP) | **all 17 blocked** |
+| `sbx-a` | | both gateways' sandbox addresses (where the agent's port 8443 would be reachable by a sandbox) | **all 34 blocked** |
+| `sbx-a` | | the relay's sandbox address | 14 closed ports blocked; the 3 the policy opens (TCP 4317, 4318 and UDP 5140) reached the relay |
+| `sbx-a` | | the management addresses of bastion, cp-1, cp-2, gw-a, gw-b, relay: 102 probes | **no host reached** (see below) |
+| `gw` | `sg-gateway.sandbox` | `sbx-a` and `sbx-b` | **TCP 80 reached both** (positive control); the other 16 ports of each blocked |
+
+255 probes, **0 leaks**. Notes on what the numbers mean:
+
+- *Sandbox to sandbox is blocked on every port*, and the same probes from a machine in the gateway
+  group do get through on port 80 and only port 80, so the block is the security group and not a
+  dead probe.
+- *Management addresses answer "refused" on every port, but not because a host does.* There is no
+  router between `sandbox-net` and `mgmt-net`, so the packets go to `r-edge` and out. The run also
+  probes an address nobody owns on that network (`10.30.0.250`); it gets the same refusal, port
+  for port. What answers is the cloud's router, for the whole prefix. The script counts a refusal
+  as a router's when the unowned-address control says the same, and reports it separately
+  (`answered_by_a_router_not_the_host: 102`). A silent verdict, as for the other networks, would
+  have been cleaner; the refusal is the provider's choice.
+- *Six expected-open paths were closed* in this run: a sandbox to the gateways' edge addresses and
+  the VIP on TCP 80 and 443. The cause is known and is not a policy error: the gateways here are
+  stock VMs, so the `gateway_network` role's policy route is missing and replies to edge-sourced
+  traffic leave by the sandbox port, where port security drops them (the same finding as in the
+  lab, above). The path is only provable once the Ansible roles have run.
+- Not exercised on the real cloud: forged source MAC/IP and forged VRRP (they need packets a
+  normal stack will not send; the lab does them), the host firewall (the roles have not been run
+  on real hosts), and internet-to-floating-IP probing (`isolation.real --as internet`).
+
 ## Not covered
 
-The lab emulates Neutron; it is not Neutron. `.ci/isolation-dev.sh` runs the same probes from a
-test sandbox in `dev` (and the floating IPs from outside) as the plan's nightly job, but has not
-been run: no deployment existed when this was written. Forged frames and rerouting need the lab.
+The lab emulates Neutron; it is not Neutron, so the real run above covers what a normal network
+stack can probe. `.ci/isolation-dev.sh` is the plan's nightly job and has not been run. Forged
+frames and rerouting need the lab.

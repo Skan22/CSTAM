@@ -17,6 +17,14 @@ from ipo.adapters.openstack.base import TAG, CloudError, Port, QuotaExceeded, Se
 from ipo.settings import Settings
 
 
+def _present(server: Any) -> bool:
+    """Nova keeps listing a deleted server for a while (status DELETED), and a server it has
+    accepted the delete for stays ACTIVE with task_state `deleting` for seconds. Neither is a VM
+    anyone should count, reuse by name, or wait for."""
+    return (server.status not in ("DELETED", "SOFT_DELETED")
+            and str(getattr(server, "task_state", "") or "").lower() != "deleting")
+
+
 def _epoch(stamp: str | None) -> float:
     if not stamp:
         return 0.0
@@ -71,7 +79,7 @@ class OpenStackCloud:
     def _server(self, s: Any, port_by_device: Mapping[str, str]) -> Server:
         return Server(id=s.id, name=s.name, port_id=port_by_device.get(s.id, ""),
                       tags=tuple(s.tags or ()), metadata=dict(s.metadata or {}),
-                      created_at=_epoch(s.created_at))
+                      created_at=_epoch(s.created_at), status=str(s.status or "ACTIVE"))
 
     # -- Cloud
     @_translated
@@ -94,7 +102,8 @@ class OpenStackCloud:
         self, *, name: str, port_id: str, tags: Sequence[str] = (TAG,),
         metadata: Mapping[str, str] | None = None,
     ) -> Server:
-        existing = next((s for s in self.conn.compute.servers(name=name) if s.name == name), None)
+        existing = next((s for s in self.conn.compute.servers(name=name)
+                         if s.name == name and _present(s)), None)
         if existing is None:
             kwargs: dict[str, Any] = {}
             if self.key_name:
@@ -136,4 +145,5 @@ class OpenStackCloud:
     @_translated
     def list_servers(self, tag: str = TAG) -> list[Server]:
         by_device = {p.device_id: p.id for p in self.conn.network.ports(tags=tag) if p.device_id}
-        return [self._server(s, by_device) for s in self.conn.compute.servers(tags=tag)]
+        return [self._server(s, by_device) for s in self.conn.compute.servers(tags=tag)
+                if _present(s)]

@@ -6,12 +6,13 @@ import psycopg
 from prometheus_client import Counter, Gauge, Histogram
 
 from ipo.domain.gateways import masters as gateway_masters
+from ipo.domain.leases import ready_pooled
 
 RECONCILER_REPAIRS = Counter(
     "ipo_reconciler_repairs_total", "Drift repaired by the reconciler", ["rule"])
 
 IP_ADDRESSES = Gauge("ipo_ip_addresses", "Addresses by lease state", ["state"])
-POOL_SIZE = Gauge("ipo_pool_size", "Warm VMs ready to be claimed")
+POOL_SIZE = Gauge("ipo_pool_size", "Warm VMs ready to be claimed (booted and unclaimed)")
 POOL_TARGET = Gauge("ipo_pool_target", "Configured warm pool size")
 TEAMS = Gauge("ipo_teams", "Teams by state", ["state"])
 CONFIG_LIVE_VERSION = Gauge("ipo_config_live_version", "Config version each gateway runs",
@@ -52,7 +53,7 @@ def refresh_gauges(conn: psycopg.Connection, *, pool_target: int,
         conn.execute("SELECT state::text, count(*) FROM leases GROUP BY 1"))
     for s in LEASE_STATES:
         IP_ADDRESSES.labels(s).set(lease_counts.get(s, 0))
-    POOL_SIZE.set(lease_counts.get("pooled", 0))
+    POOL_SIZE.set(ready_pooled(conn))
     POOL_TARGET.set(pool_target)
     team_counts: dict[str, int] = dict(conn.execute("SELECT state, count(*) FROM teams GROUP BY 1"))
     for s in TEAM_STATES:

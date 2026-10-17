@@ -72,7 +72,8 @@ class Release(_Forward):
         assert job.team_id
         teardown.release_team(conn, self.d.cloud, job.team_id, job.payload.get("ip"),
                               quarantine_seconds=runtime_settings.effective(
-                                  conn, self.d.settings).quarantine_seconds)
+                                  conn, self.d.settings).quarantine_seconds,
+                              verify_wait=self.d.release_verify_seconds)
         return None
 
 

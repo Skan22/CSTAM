@@ -27,6 +27,11 @@ def server_name(ip: str) -> str:
     return f"ipo-vm-{ip}"
 
 
+def ip_of_server_name(name: str) -> str | None:
+    """The address a server named by `server_name` belongs to; None for any other name."""
+    return name.removeprefix("ipo-vm-") if name.startswith("ipo-vm-") else None
+
+
 @dataclass(frozen=True)
 class Port:
     id: str
@@ -44,6 +49,7 @@ class Server:
     tags: tuple[str, ...] = (TAG,)
     metadata: Mapping[str, str] = field(default_factory=dict)
     created_at: float = 0.0  # epoch seconds
+    status: str = "ACTIVE"  # Nova's: BUILD while it boots, ACTIVE, ERROR, ...
 
 
 class Cloud(Protocol):
