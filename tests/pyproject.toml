@@ -12,6 +12,7 @@ dependencies = [
     "rich>=15.0.0",
     "openstacksdk>=4.20.0",
     "dnspython>=2.9.0",
+    "pillow>=13.0.0",
 ]
 
 [dependency-groups]

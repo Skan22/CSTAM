@@ -28,6 +28,7 @@ import argparse
 import base64
 import contextlib
 import dataclasses
+import ipaddress
 import json
 import os
 import time
@@ -44,36 +45,72 @@ IMAGE = "Debian 13 - Trixie"
 RESULT_PORT = 8099
 
 
-def user_data(batch: list[dict[str, Any]], tag: str) -> str:
-    worker = Path(__file__).with_name("worker.py").read_bytes()
-    request = json.dumps({"tag": tag, "probes": batch}).encode()
-    def b64(data: bytes) -> str:
-        return base64.b64encode(data).decode()
+def b64(data: bytes) -> str:
+    return base64.b64encode(data).decode()
 
+
+def here(name: str) -> bytes:
+    return Path(__file__).with_name(name).read_bytes()
+
+
+def cloud_config(files: dict[str, bytes], command: str) -> str:
     return "#cloud-config\n" + yaml.safe_dump({
-        "write_files": [
-            {"path": "/opt/ipo/worker.py", "encoding": "b64", "content": b64(worker)},
-            {"path": "/opt/ipo/request.json", "encoding": "b64", "content": b64(request)},
-        ],
-        "runcmd": [[
-            "sh", "-c",
-            "python3 /opt/ipo/worker.py < /opt/ipo/request.json > /opt/ipo/result.tmp && "
-            "mv /opt/ipo/result.tmp /opt/ipo/result.json; "
-            f"cd /opt/ipo && nohup python3 -m http.server {RESULT_PORT} >/dev/null 2>&1 &",
-        ]],
+        "write_files": [{"path": f"/opt/ipo/{name}", "encoding": "b64", "content": b64(data)}
+                        for name, data in files.items()],
+        "runcmd": [["sh", "-c", command]],
     })
 
 
-def fetch_verdicts(url: str, timeout: float) -> list[str]:
+SERVE = f"cd /opt/ipo && nohup python3 -m http.server {RESULT_PORT} >/dev/null 2>&1 &"
+
+
+def prober_data(batch: list[dict[str, Any]], tag: str, spoof: list[str] | None = None) -> str:
+    """cloud-init for a probe VM: run the probes, serve the verdicts, and (for the attacker) then
+    send forged datagrams to the victim."""
+    files = {"worker.py": here("worker.py"),
+             "request.json": json.dumps({"tag": tag, "probes": batch}).encode()}
+    command = ("python3 /opt/ipo/worker.py < /opt/ipo/request.json > /opt/ipo/result.tmp && "
+               f"mv /opt/ipo/result.tmp /opt/ipo/result.json; {SERVE}")
+    if spoof:
+        files["spoof_sender.py"] = here("spoof_sender.py")
+        command += f" python3 /opt/ipo/spoof_sender.py {' '.join(spoof)} >/opt/ipo/spoof.log 2>&1 &"
+    return cloud_config(files, command)
+
+
+def listener_data() -> str:
+    """cloud-init for the victim: record every datagram that reaches UDP 5140 and serve the list."""
+    return cloud_config({"spoof_listener.py": here("spoof_listener.py")},
+                        "nohup python3 /opt/ipo/spoof_listener.py >/opt/ipo/listener.log 2>&1 &")
+
+
+def fetch_json(url: str, timeout: float, ready: Any = None) -> Any:
+    """GET `url` until it answers with JSON (that `ready` accepts, when given)."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=5) as r:
-                verdicts: list[str] = json.loads(r.read())
-                return verdicts
+                data = json.loads(r.read())
+            if ready is None or ready(data):
+                return data
         except (urllib.error.URLError, OSError, ValueError):
-            time.sleep(5)
-    raise TimeoutError(f"no verdicts at {url} after {timeout:.0f}s")
+            pass
+        time.sleep(5)
+    raise TimeoutError(f"no usable answer at {url} after {timeout:.0f}s")
+
+
+def fetch_text(url: str, timeout: float, ready: Any = None) -> str:
+    deadline = time.monotonic() + timeout
+    text = ""
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                text = str(r.read().decode(errors="replace"))
+            if ready is None or ready(text):
+                return text
+        except (urllib.error.URLError, OSError):
+            pass
+        time.sleep(3)
+    return text
 
 
 def cleanup(conn: Any, created: list[tuple[str, str]]) -> None:
@@ -115,12 +152,17 @@ def main(argv: list[str] | None = None) -> int:
     net = conn.network.find_network("sandbox-net", ignore_missing=False)
     flavor = conn.compute.find_flavor(platform["flavors"]["sandbox"], ignore_missing=False)
     image = conn.image.find_image(IMAGE, ignore_missing=False)
-    spare = str(__import__("ipaddress").IPv4Address(platform["ip_pool"]["first"]) + 2)
+    first = ipaddress.IPv4Address(platform["ip_pool"]["first"])
+    victim = str(first + 3)
     plan = {  # name -> (security group, address, probing as)
         "sbx-a": ("sg-sandbox.sandbox", nodes["sbx-a"].addrs["sandbox"], "sbx-a"),
         "sbx-b": ("sg-sandbox.sandbox", nodes["sbx-b"].addrs["sandbox"], None),
-        "gw": ("sg-gateway.sandbox", spare, "gw-a"),
+        "gw": ("sg-gateway.sandbox", str(first + 2), "gw-a"),
+        # a relay's group, with a listener: the one thing a sandbox may send to (UDP 5140)
+        "victim": ("sg-relay.sandbox", victim, "listener"),
     }
+    forged = [victim, nodes["sbx-b"].addrs["sandbox"], str(first + 60),
+              platform["network"]["hosts"]["gw-a"]["sandbox"]]  # to, neighbour, unused, gateway
     created: list[tuple[str, str]] = []  # (kind, id), see cleanup()
     servers: dict[str, Any] = {}
     ports: dict[str, Any] = {}
@@ -146,7 +188,9 @@ def main(argv: list[str] | None = None) -> int:
             ports[name] = port
             created.append(("port", port.id))
             data = None
-            if as_node:
+            if as_node == "listener":
+                data = listener_data()
+            elif as_node:
                 probes = model.probes_from(platform, spec, as_node)
                 if as_node == "gw-a":  # only what a gateway shares a segment with: the sandboxes
                     probes = [p for p in probes if p.net == "sandbox" and p.dst in ("sbx-a", "sbx-b")]
@@ -157,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
                                for p in probes if p.dst == "cp-1" and p.net == "mgmt"]
                 probes_by[name] = probes
                 batch = [{"addr": p.addr, "proto": p.proto, "port": p.port} for p in probes]
-                data = user_data(batch, "ipo-isolation")
+                data = prober_data(batch, "ipo-isolation", forged if as_node == "sbx-a" else None)
             extra = {"user_data": base64.b64encode(data.encode()).decode()} if data else {}
             server = conn.compute.create_server(
                 name=f"ipo-isolation-{name}", flavor_id=flavor.id, image_id=image.id,
@@ -168,13 +212,20 @@ def main(argv: list[str] | None = None) -> int:
         for name in servers:
             conn.compute.wait_for_server(servers[name], status="ACTIVE", wait=300)
         results: dict[str, list[str]] = {}
+        base = f"http://{fip.floating_ip_address}:{RESULT_PORT}"
         for name in probes_by:
             print(f"waiting for {name}'s verdicts on {fip.floating_ip_address}:{RESULT_PORT}",
                   flush=True)
             conn.network.update_ip(fip, port_id=ports[name].id)
-            results[name] = fetch_verdicts(
-                f"http://{fip.floating_ip_address}:{RESULT_PORT}/result.json", args.timeout)
+            results[name] = fetch_json(f"{base}/result.json", args.timeout)
             conn.network.update_ip(fip, port_id=None)
+        print("waiting for the victim's list of datagrams (the attacker is still sending)",
+              flush=True)
+        conn.network.update_ip(fip, port_id=ports["victim"].id)
+        received = fetch_json(f"{base}/", args.timeout,
+                              ready=lambda seen: any(d["payload"] == "end" for d in seen))
+        conn.network.update_ip(fip, port_id=ports["sbx-a"].id)
+        sent_log = fetch_text(f"{base}/spoof.log", 60, ready=lambda text: "done" in text)
     finally:
         cleanup(conn, created)
 
@@ -207,16 +258,30 @@ def main(argv: list[str] | None = None) -> int:
                 leaks.append(f"LEAK {p.name}: {v}")
             elif p.expect_open and not reachable:
                 (unverified if p.proto == "udp" else broken).append(f"{p.name}: {v}")
+    # port security: the honest datagrams must arrive (the path is open) and no forged one may
+    honest = [d for d in received if d["payload"] in ("honest", "end")]
+    delivered = [d for d in received if d["payload"].startswith("spoof")]
+    leaks += [f"LEAK forged datagram delivered: {d['payload']} claiming {d['src']}" for d in delivered]
+    if not any("spoof-mac" in ln for ln in sent_log.splitlines() if ln.startswith("sent")):
+        broken.append("the attacker could not forge a MAC: " + (sent_log.strip().splitlines() or ["?"])[-2])
+    if not honest:
+        broken.append("the honest datagram never arrived: the forged ones prove nothing")
     for line in leaks + [f"CLOSED {b}" for b in broken] + [f"unverified {u}" for u in unverified]:
         print(line)
     summary = {"probes": total, "expected_open": controls, "expected_open_reached": reached,
                "leaks": len(leaks), "closed_but_should_be_open": len(broken),
                "udp_unverified": len(unverified), "answered_by_a_router_not_the_host": unrouted,
-               "sources": {k: len(v) for k, v in probes_by.items()}}
+               "sources": {k: len(v) for k, v in probes_by.items()},
+               "port_security": {
+                   "forged_kinds_sent": ["spoof-ip-neighbour", "spoof-ip-unused", "spoof-ip-gateway",
+                                         "spoof-mac"],
+                   "sent": [ln.removeprefix("sent ") for ln in sent_log.splitlines()
+                            if ln.startswith("sent spoof")],
+                   "honest_delivered": len(honest), "forged_delivered": len(delivered)}}
     print(json.dumps(summary))
     if args.out:
         args.out.write_text(json.dumps({
-            "summary": summary,
+            "summary": summary, "victim_received": received,
             "verdicts": {n: [dataclasses.asdict(p) | {"verdict": v} for p, v in
                              zip(probes_by[n], results[n], strict=True)] for n in probes_by}}))
     return 1 if leaks else 2 if broken else 0

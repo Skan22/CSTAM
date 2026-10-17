@@ -35,7 +35,7 @@ export function Overview() {
       <Card title="Address pool" className="lg:col-span-1">
         {p ? (
           <div className="grid grid-cols-3 gap-4">
-            <Stat label="Warm" value={`${p.size}/${p.target}`} tone={p.target > 0 && p.size < p.target / 2 ? "warn" : undefined} />
+            <Stat label="Warm" value={`${p.size}/${p.effective_target}`} sub={p.effective_target > p.target ? `grown from ${p.target} to meet recent demand` : undefined} tone={p.effective_target > 0 && p.size < p.effective_target / 2 ? "warn" : undefined} />
             <Stat label="Free" value={p.free} />
             <Stat label="Leased" value={p.leased} />
           </div>

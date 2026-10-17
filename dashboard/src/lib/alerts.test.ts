@@ -6,7 +6,7 @@ const beat = "2026-01-01T11:59:58Z";
 const gw = (gateway: string, vrrp_state: string, live_version: number | null = 3, last_heartbeat: string | null = beat): Gateway => ({
   gateway, vrrp_state, live_version, last_heartbeat,
 });
-const pool = (size: number, target: number): Pool => ({ size, target, free: 0, leased: 0, draining: 0, quarantined: 0 });
+const pool = (size: number, target: number): Pool => ({ size, target, effective_target: target, free: 0, leased: 0, draining: 0, quarantined: 0 });
 const ids = (a: ReturnType<typeof computeAlerts>) => a.map((x) => x.id);
 
 test("a healthy pair raises nothing", () => {

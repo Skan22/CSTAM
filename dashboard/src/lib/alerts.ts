@@ -28,8 +28,8 @@ export function computeAlerts(gateways: Gateway[], pool: Pool | undefined, now: 
       out.push({ id: `stale-${g.gateway}`, level: "warn", text: `${g.gateway} has not sent a heartbeat in the last ${STALE_MS / 1000}s.` });
     }
   }
-  if (pool && pool.target > 0 && pool.size < pool.target / 2) {
-    out.push({ id: "pool-low", level: "warn", text: `Warm pool is at ${pool.size} of ${pool.target}.` });
+  if (pool && pool.effective_target > 0 && pool.size < pool.effective_target / 2) {
+    out.push({ id: "pool-low", level: "warn", text: `Warm pool is at ${pool.size} of ${pool.effective_target}.` });
   }
   return out;
 }

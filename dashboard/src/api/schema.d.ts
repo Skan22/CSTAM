@@ -752,6 +752,11 @@ export interface components {
         Pool: {
             /** Draining */
             draining: number;
+            /**
+             * Effective Target
+             * @description What the pool is filling to now: the target, or the recent demand if greater (up to the pool maximum)
+             */
+            effective_target: number;
             /** Free */
             free: number;
             /** Leased */
@@ -763,7 +768,10 @@ export interface components {
              * @description Warm VMs ready to be claimed: booted and unclaimed
              */
             size: number;
-            /** Target */
+            /**
+             * Target
+             * @description The configured number of warm VMs
+             */
             target: number;
         };
         /** RecentRequest */
@@ -878,6 +886,8 @@ export interface components {
          * @description The only settings that can change at runtime; unknown fields are rejected.
          */
         SettingsPatch: {
+            /** Demand Window Seconds */
+            demand_window_seconds?: number | null;
             /** Lease Ttl Seconds */
             lease_ttl_seconds?: number | null;
             /** Max Parallel Boots */

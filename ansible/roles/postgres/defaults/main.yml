@@ -6,7 +6,7 @@ postgres_primary_ip: "{{ ipo_platform.network.hosts[postgres_primary].mgmt }}"
 postgres_cp_ips: "{{ ipo_cp_hosts | map('extract', ipo_platform.network.hosts) | map(attribute='mgmt') | list }}"
 postgres_config_dir: "/var/lib/{{ ipo_service_user }}/.config/ipo/postgres"
 postgres_shared_buffers: 256MB
-postgres_max_connections: 100
+postgres_max_connections: 300
 postgres_superuser_password: "{{ ipo_secrets.postgres_password }}"
 postgres_replication_password: "{{ ipo_secrets.replication_password }}"
 postgres_app_password: "{{ ipo_secrets.app_db_password }}"

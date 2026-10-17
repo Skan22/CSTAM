@@ -216,7 +216,7 @@ Each step has `status` (`running`, `done`, `failed`, `undone`), timestamps and a
 | Method and path | Role | Notes |
 | --- | --- | --- |
 | `GET /v1/settings` | admin | `{values, history}` |
-| `PATCH /v1/settings` | admin | any of `pool_target (0–200)`, `reserve_free_ips`, `lease_ttl_seconds (60–604800)`, `quarantine_seconds (0–86400)`, `max_parallel_boots (1–20)`; applies at once, no restart, audited |
+| `PATCH /v1/settings` | admin | any of `pool_target (0–200)`, `reserve_free_ips`, `lease_ttl_seconds (60–604800)`, `quarantine_seconds (0–86400)`, `max_parallel_boots (1–20)`, `demand_window_seconds (0–86400)`; applies at once, no restart, audited |
 | `GET /v1/audit` | admin | `{chain: {valid, first_bad_id}, entries[]}`: the hash-chained audit log and its integrity check |
 | `GET /v1/ui` | viewer | dashboard configuration (the Grafana URL to embed) |
 

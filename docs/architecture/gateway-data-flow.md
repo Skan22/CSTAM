@@ -47,7 +47,7 @@ config version on both gateways.
 | Step | What happens |
 | --- | --- |
 | A | A saga (or an admin action) inserts or deletes a row in `routes` |
-| B | PostgreSQL `NOTIFY ipo_routes_changed` wakes the compiler, which debounces bursts (0.1 s) |
+| B | PostgreSQL `NOTIFY ipo_routes_changed` wakes the compiler, which batches bursts: it waits 30 ms for company, then compiles at most every 150 ms, and changes that arrive while a version is being pushed go into the next one, so a burst of 50 registrations costs a handful of versions, not 50 |
 | C | The compiler renders Traefik's dynamic config, computes its SHA-256, signs `version + hash + body` with Ed25519, stores it in `config_versions`, and `PUT`s it to **both** agents over mTLS. Each agent also polls `GET /v1/config/latest` every 5 s, which covers a missed push |
 | 1 to 7 | Inside the agent, in order: **verify** the signature (403 if bad), **validate** the content, **stage** to `staging.json` (fsync), **swap** by atomic rename onto `live.yml`, **converge** (wait until Traefik's API lists the new routers), **probe** (request every route changed since the live config, plus the canary, through Traefik), **commit** (hard-link as `lkg-N.json`, drop older ones) |
 | D | The agent answers `200` with its `live_version`. The version becomes `live` only when both gateways acknowledge it; if either refuses (policy 422), it is marked `rejected` |

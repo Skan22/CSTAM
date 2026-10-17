@@ -111,7 +111,9 @@ class Job(BaseModel):
 
 class Pool(BaseModel):
     size: int = Field(description="Warm VMs ready to be claimed: booted and unclaimed")
-    target: int
+    target: int = Field(description="The configured number of warm VMs")
+    effective_target: int = Field(description="What the pool is filling to now: the target, or "
+                                  "the recent demand if greater (up to the pool maximum)")
     free: int
     leased: int
     draining: int

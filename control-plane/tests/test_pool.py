@@ -129,3 +129,33 @@ def test_a_fake_cloud_with_a_state_file_survives_a_restart(tmp_path: object) -> 
     assert newer.id != port.id  # ids keep counting
     again.delete_server(server.id)
     assert FakeCloud(state_file=state).list_servers() == []
+
+
+def test_the_pool_grows_to_the_recent_demand_and_shrinks_when_it_passes(dsn: str) -> None:
+    from ipo.domain.demand import demand_target
+    from ipo.domain.registration import register_team
+
+    settings, cloud, connect = make_env(dsn, pooled=2, quarantine_seconds=0, pool_max=6,
+                                        demand_window_seconds=3600, reserve_free_ips=0)
+    pool = PoolManager(cloud, settings, connect)
+    with connect() as c:
+        assert demand_target(c, 2, settings) == 2  # quiet: the configured target
+        for i in range(4):
+            register_team(c, settings, slug=f"t{i}", owner="o", idempotency_key=f"k{i}")
+        assert demand_target(c, 2, settings) == 4  # four registered: be ready for four more
+        for i in range(4, 9):
+            register_team(c, settings, slug=f"t{i}", owner="o", idempotency_key=f"k{i}")
+        assert demand_target(c, 2, settings) == 6  # capped at pool_max
+        target = demand_target(c, 2, settings)
+    pool.reconcile(target=target)
+    with connect() as c:
+        assert leases.counts(c)["pooled"] == 6
+    # the window passes: the target falls back to the configured one and the surplus goes
+    from dataclasses import replace
+    quiet = replace(settings, demand_window_seconds=0)
+    with connect() as c:
+        target = demand_target(c, 2, quiet)
+    assert target == 2
+    pool.reconcile(target=target)
+    with connect() as c:
+        assert leases.counts(c)["pooled"] == 2

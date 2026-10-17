@@ -95,7 +95,7 @@ class Postgres:
         subprocess.run([self._bin("initdb"), "-D", str(data), "-U", "ipo", "--auth=trust",
                         "-E", "UTF8"], check=True, capture_output=True)
         opts = (f"-c listen_addresses='' -c unix_socket_directories={self.sock} -c fsync=off "
-                "-c synchronous_commit=off -c full_page_writes=off -c max_connections=100")
+                "-c synchronous_commit=off -c full_page_writes=off -c max_connections=300")
         subprocess.run([self._bin("pg_ctl"), "-D", str(data), "-o", opts, "-w", "-l",
                         str(self.root / "pg.log"), "start"], check=True, capture_output=True)
         subprocess.run([self._bin("createdb"), "-h", str(self.sock), "-U", "ipo", "ipo"],

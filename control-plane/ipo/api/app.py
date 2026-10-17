@@ -26,6 +26,7 @@ from ipo.api.auth import Principal
 from ipo.api.problem import Problem, install
 from ipo.controllers import compiler
 from ipo.domain import events, gateways, leases, traffic
+from ipo.domain.demand import demand_target
 from ipo.domain.registration import (
     IdempotencyConflict,
     PoolExhausted,
@@ -413,6 +414,8 @@ def create_app(deps: AppDeps) -> FastAPI:
         c = leases.counts(conn)
         return models.Pool(
             size=leases.ready_pooled(conn), target=settings_now(conn).pool_target,
+            effective_target=demand_target(
+                conn, settings_now(conn).pool_target, settings_now(conn)),
             free=c.get("free", 0), leased=c.get("leased", 0), draining=c.get("draining", 0),
             quarantined=c.get("quarantined", 0))
 

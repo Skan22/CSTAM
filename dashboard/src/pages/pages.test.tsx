@@ -113,7 +113,7 @@ describe("Overview", () => {
     await signIn("viewer");
     mockApi({
       "GET /v1/gateways": { gateways: [gw(), gw({ gateway: "gw2", vrrp_state: "BACKUP", last_heartbeat: inFuture(-300) })], split_brain: false },
-      "GET /v1/pool": { size: 5, target: 5, free: 20, leased: 2, draining: 0, quarantined: 0 },
+      "GET /v1/pool": { size: 5, target: 5, effective_target: 5, free: 20, leased: 2, draining: 0, quarantined: 0 },
       "GET /v1/teams": [team()],
     });
     renderLive(<Overview />);

@@ -23,7 +23,7 @@ Configuration comes from the environment:
                        when the same front serves both (optional)
     IPO_RELEASE_VERIFY_SECONDS  how long teardown waits for the cloud to finish deleting a VM
                        before calling it a leftover (default 40)
-    IPO_WORKERS        saga worker threads (default 24)
+    IPO_WORKERS        saga worker threads (default 48)
     IPO_BIND           host:port for the API (default 0.0.0.0:8000)
     IPO_MIGRATE        `1` to run migrations at start
     IPO_ADMIN_EMAIL / IPO_ADMIN_PASSWORD   creates or resets this admin at start
@@ -68,6 +68,7 @@ from ipo.controllers.register_saga import Deps, Prober
 from ipo.controllers.workers import JobWakeups, build_runner, run_leader, run_worker
 from ipo.db.migrate import upgrade
 from ipo.domain import leases
+from ipo.domain.demand import demand_target
 from ipo.domain.signing import Signer
 from ipo.settings import Settings
 
@@ -181,6 +182,11 @@ def build_runtime(
             return runtime_settings.effective(conn, base)
 
     pool = PoolManager(cloud, base, connect)
+
+    def pool_target() -> int:
+        with connect() as conn:
+            live_settings = runtime_settings.effective(conn, base)
+            return demand_target(conn, live_settings.pool_target, live_settings)
     compiler = CompilerController(connect, signer, base, push=pusher.push)
     reconciler = Reconciler(cloud, base, connect, repush=pusher.push, dns=dns)
     reaper = Reaper(connect)
@@ -191,11 +197,11 @@ def build_runtime(
 
     wakeups = JobWakeups()
     thread("job-wakeups", partial(wakeups.run, connect, stop))
-    for i in range(int(env.get("IPO_WORKERS", "24"))):
+    for i in range(int(env.get("IPO_WORKERS", "48"))):
         runner = build_runner(connect, deps, worker_id=f"{socket.gethostname()}-{os.getpid()}-{i}")
         thread(f"worker-{i}", partial(run_worker, runner, stop, wakeups=wakeups))
     thread("pool", lambda: run_leader(
-        connect, "pool", stop, 2.0, lambda: pool.reconcile(target=live().pool_target)))
+        connect, "pool", stop, 2.0, lambda: pool.reconcile(target=pool_target())))
     thread("compiler", lambda: compiler.run(stop))
     thread("reaper", lambda: reaper.run(stop))
     thread("reconciler", lambda: reconciler.run(stop))

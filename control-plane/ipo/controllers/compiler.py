@@ -263,7 +263,7 @@ class DbGateways:
     """`Gateways` for the registration saga: a route has converged once every gateway's
     acked live version contains it."""
 
-    def __init__(self, settings: Settings, *, poll_interval: float = 0.25) -> None:
+    def __init__(self, settings: Settings, *, poll_interval: float = 0.1) -> None:
         self.settings = settings
         self.poll_interval = poll_interval
 
@@ -310,7 +310,7 @@ class CompilerController:
         settings: Settings,
         *,
         push: Callable[[ConfigVersion], object],
-        max_wait: float = 1.0,
+        max_wait: float = 0.15,
     ) -> None:
         self.connect = connect
         self.signer = signer

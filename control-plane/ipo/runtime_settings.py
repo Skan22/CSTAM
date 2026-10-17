@@ -23,6 +23,7 @@ class SettingsPatch(BaseModel):
     lease_ttl_seconds: int | None = Field(None, ge=60, le=7 * 86400)
     quarantine_seconds: float | None = Field(None, ge=0, le=86400)
     max_parallel_boots: int | None = Field(None, ge=1, le=20)
+    demand_window_seconds: int | None = Field(None, ge=0, le=86400)
 
 
 FIELDS = tuple(SettingsPatch.model_fields)

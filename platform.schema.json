@@ -39,7 +39,9 @@
       "properties": {
         "target_size": {"type": "integer", "minimum": 0, "maximum": 100},
         "max_parallel_boots": {"type": "integer", "minimum": 1, "maximum": 20},
-        "reserve_free_ips": {"type": "integer", "minimum": 0}
+        "reserve_free_ips": {"type": "integer", "minimum": 0},
+        "max_size": {"type": "integer", "minimum": 0, "maximum": 100},
+        "demand_window_seconds": {"type": "integer", "minimum": 0}
       }
     },
     "lease": {

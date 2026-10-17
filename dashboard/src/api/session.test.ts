@@ -23,7 +23,7 @@ test("login stores the token and role and sends the token afterwards", async () 
   handler = (req) =>
     new URL(req.url).pathname === "/v1/auth/login"
       ? json({ access_token: "t1", token_type: "bearer", expires_in: 900, role: "operator" })
-      : json({ size: 1, target: 2, free: 3, leased: 0, draining: 0, quarantined: 0 });
+      : json({ size: 1, target: 2, effective_target: 2, free: 3, leased: 0, draining: 0, quarantined: 0 });
   expect(await login("a@x", "pw")).toBeNull();
   expect(session.get()).toMatchObject({ role: "operator", email: "a@x", token: "t1" });
   await api.GET("/v1/pool");

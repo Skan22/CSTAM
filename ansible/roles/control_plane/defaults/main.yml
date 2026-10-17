@@ -9,7 +9,7 @@ control_plane_database_url: >-
 # One replica runs the migrations, at start, before serving.
 control_plane_migrate: "{{ inventory_hostname == ipo_db_primary }}"
 control_plane_gateways: "{{ groups.get('gateways', ['gw-a', 'gw-b']) }}"
-control_plane_workers: 24
+control_plane_workers: 48
 control_plane_os_cloud: felcloud
 # Team names: `wildcard` assumes *.<domain> already points at the floating IP (FelCloud has no DNS
 # service, so this is the default and needs no per-team record). `rfc2136` publishes one A record

@@ -11,8 +11,10 @@ control plane and the tests.
 | --- | --- | --- |
 | `domain` | team hosts are `<slug>.<domain>` | `cstam.felcloud.tn` |
 | `ip_pool.cidr`, `first`, `last` | the sandbox range (also Neutron's allocation pool) | 10.20.0.0/24, `.10` to `.109` (100 addresses) |
-| `pool.target_size` | warm VMs kept ready | 12 |
-| `pool.max_parallel_boots` | concurrent boots | 6 |
+| `pool.target_size` | warm VMs kept ready at minimum | 12 |
+| `pool.max_size` | the most the pool will grow to when recent demand is higher | 40 |
+| `pool.demand_window_seconds` | registrations in this window raise the pool target to match (0 turns the growth off) | 900 |
+| `pool.max_parallel_boots` | concurrent boots | 10 |
 | `pool.reserve_free_ips` | registration refuses below this many unallocated addresses | 5 |
 | `lease.ttl_seconds` | how long a team lives before the reaper tears it down | 7200 |
 | `lease.quarantine_seconds` | an address rests this long after teardown | 60 |
@@ -57,7 +59,7 @@ internet, TCP from the internet to anything but the gateways, ports outside the 
 | `IPO_AGENT_CERT`, `IPO_AGENT_KEY`, `IPO_AGENT_CA` | mTLS material for talking to agents |
 | `IPO_VIP` | the VIP, for the registration probe |
 | `IPO_GRAFANA_URL` | Grafana to embed: an `http(s)` URL, or a path such as `/grafana` when one front serves both |
-| `IPO_WORKERS` | saga worker threads (default 24); idle workers sleep until a job is queued, so many cost nothing |
+| `IPO_WORKERS` | saga worker threads (default 48); idle workers sleep until a job is queued, so many cost nothing |
 | `IPO_DNS` | `wildcard` (default: `*.<domain>` is set once to the floating IP, nothing per team) or `rfc2136` (one A record per team, published and withdrawn with signed dynamic updates) |
 | `IPO_DNS_SERVER`, `IPO_DNS_TARGET`, `IPO_DNS_ZONE`, `IPO_DNS_TTL` | with `rfc2136`: the server (`host[:port]`), the address every record points at (the floating IP), the zone (default: the platform domain) and the TTL (30) |
 | `IPO_DNS_TSIG_NAME`, `IPO_DNS_TSIG_SECRET`, `IPO_DNS_TSIG_ALGORITHM` | TSIG key (base64 secret, `hmac-sha256` by default); without one, updates are unsigned |
@@ -90,7 +92,7 @@ internet, TCP from the internet to anything but the gateways, ports outside the 
 ## Runtime settings
 
 `GET`/`PATCH /v1/settings` (admin) changes `pool_target`, `reserve_free_ips`, `lease_ttl_seconds`,
-`quarantine_seconds` and `max_parallel_boots` live, with the previous value and the actor kept.
+`quarantine_seconds`, `max_parallel_boots` and `demand_window_seconds` live, with the previous value and the actor kept.
 Lowering `pool_target` discards the idle warm VMs beyond it; teardown, the reconciler and the pool
 read `quarantine_seconds` at the time they act.
 

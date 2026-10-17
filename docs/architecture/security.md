@@ -196,7 +196,7 @@ leases.
 
 Registration needs an authenticated operator; a name is 1–63 characters of `[a-z0-9-]`; the
 free-address reserve (`reserve_free_ips`) refuses registrations before the pool is exhausted; the
-warm pool is capped (`pool_target`, 0–200) and a lowered target discards idle VMs; leases expire
+warm pool is capped (`pool_target`, 0–200; it grows with recent demand only up to `pool.max_size`) and a lowered target discards idle VMs; leases expire
 (`lease_ttl_seconds`); traffic reports are bounded (500 hosts, 200 recent requests); the pool
 manager backs off on quota errors. All settings change at runtime and every change is audited.
 

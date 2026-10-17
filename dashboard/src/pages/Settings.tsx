@@ -10,6 +10,7 @@ const FIELDS: { key: keyof SettingsPatch; label: string; hint: string }[] = [
   { key: "lease_ttl_seconds", label: "Lease TTL (s)", hint: "Default team lease length" },
   { key: "quarantine_seconds", label: "Quarantine (s)", hint: "Cool-down before an address is reused" },
   { key: "max_parallel_boots", label: "Parallel boots", hint: "Concurrent VM boots on the cold path" },
+  { key: "demand_window_seconds", label: "Demand window (s)", hint: "The pool grows to the teams registered in this window (0 = off)" },
 ];
 
 export function Settings() {

@@ -112,6 +112,7 @@ def main() -> int:
     ap.add_argument("--cloud", default="")
     ap.add_argument("--count", type=int, default=10, help="teams per burst")
     ap.add_argument("--cold-rounds", type=int, default=2, help="cold bursts to run")
+    ap.add_argument("--cold-count", type=int, default=10, help="teams in each cold burst")
     ap.add_argument("--out", type=Path, default=Path("real.jsonl"))
     args = ap.parse_args()
 
@@ -119,7 +120,8 @@ def main() -> int:
     cloud_name = args.cloud or next(iter(clouds))
     platform = yaml.safe_load((REPO / "platform.yaml").read_text())
     platform["images"]["sandbox"] = IMAGE
-    platform["pool"].update(target_size=0, reserve_free_ips=0, max_parallel_boots=10)
+    platform["pool"].update(target_size=0, reserve_free_ips=0, max_parallel_boots=10,
+                              demand_window_seconds=0)  # the pool follows only what the script sets
     platform["lease"]["quarantine_seconds"] = 5
 
     lines: list[dict[str, Any]] = []
@@ -201,7 +203,7 @@ def main() -> int:
                 time.sleep(1)
             for rnd in range(args.cold_rounds):
                 cloud.take("ensure_server")
-                cold: Burst = reg.run(n, f"cold{rnd}")
+                cold: Burst = reg.run(args.cold_count, f"cold{rnd}")
                 emit("real-burst-cold", round=rnd, **cold.summary(),
                      nova_boot=stats(cloud.take("ensure_server")))
                 assert not cold.failures, cold.summary()
@@ -218,7 +220,7 @@ def main() -> int:
                     if time.monotonic() - t0 > 300:
                         break
                     time.sleep(0.5)
-                emit("real-recycle", round=rnd, teams=n, quarantine_s=5, teardown_s=round(torn, 1),
+                emit("real-recycle", round=rnd, teams=args.cold_count, quarantine_s=5, teardown_s=round(torn, 1),
                      address_free=stats(list(freed.values())),
                      delete_server=stats(cloud.take("delete_server")),
                      delete_port=stats(cloud.take("delete_port")))

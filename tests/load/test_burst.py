@@ -14,7 +14,7 @@ from chaos.world import World
 from lab.stack import EDGE_CLIENT, wait_for
 from load.burst import Burst, Registrar, fetch_through
 
-SIZES = [int(n) for n in os.environ.get("IPO_LOAD_SIZES", "10,20,30,50").split(",")]
+SIZES = [int(n) for n in os.environ.get("IPO_LOAD_SIZES", "10,20,30,50,90").split(",")]
 ROUNDS = int(os.environ.get("IPO_LOAD_ROUNDS", "1"))
 # Every sandbox answering within this long of the burst starting is the bar for a full burst.
 BUDGET_S = float(os.environ.get("IPO_LOAD_BUDGET", "30"))

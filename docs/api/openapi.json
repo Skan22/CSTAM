@@ -638,6 +638,11 @@
             "title": "Draining",
             "type": "integer"
           },
+          "effective_target": {
+            "description": "What the pool is filling to now: the target, or the recent demand if greater (up to the pool maximum)",
+            "title": "Effective Target",
+            "type": "integer"
+          },
           "free": {
             "title": "Free",
             "type": "integer"
@@ -656,6 +661,7 @@
             "type": "integer"
           },
           "target": {
+            "description": "The configured number of warm VMs",
             "title": "Target",
             "type": "integer"
           }
@@ -663,6 +669,7 @@
         "required": [
           "size",
           "target",
+          "effective_target",
           "free",
           "leased",
           "draining",
@@ -909,6 +916,19 @@
         "additionalProperties": false,
         "description": "The only settings that can change at runtime; unknown fields are rejected.",
         "properties": {
+          "demand_window_seconds": {
+            "anyOf": [
+              {
+                "maximum": 86400.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demand Window Seconds"
+          },
           "lease_ttl_seconds": {
             "anyOf": [
               {

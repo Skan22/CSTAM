@@ -105,7 +105,7 @@ test("a team with no traffic yet says so", async () => {
 
 test("a staff login still gets the staff pages", async () => {
   await signIn("viewer");
-  mockApi({ "GET /v1/gateways": { gateways: [] }, "GET /v1/pool": { size: 0, target: 0, free: 0, leased: 0, draining: 0, quarantined: 0 }, "GET /v1/teams": [] });
+  mockApi({ "GET /v1/gateways": { gateways: [] }, "GET /v1/pool": { size: 0, target: 0, effective_target: 0, free: 0, leased: 0, draining: 0, quarantined: 0 }, "GET /v1/teams": [] });
   render(<App />);
   expect(await screen.findByRole("link", { name: "Teams" })).toBeInTheDocument();
 });

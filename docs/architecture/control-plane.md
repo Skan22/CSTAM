@@ -107,7 +107,7 @@ token is rejected as soon as its team is deleted, without waiting for it to expi
 
 | Controller | Interval | Does |
 | --- | --- | --- |
-| **Pool manager** | 2 s | keeps `pool.target_size` VMs booted on reserved addresses, at most `max_parallel_boots` at once, with exponential backoff (up to 5 min) on quota or cloud errors; discards idle VMs beyond the target when it is lowered |
+| **Pool manager** | 2 s | keeps the **effective target** of VMs booted on reserved addresses, at most `max_parallel_boots` at once, with exponential backoff (up to 5 min) on quota or cloud errors. The effective target is `pool.target_size`, or the number of teams registered in the last `demand_window_seconds` (15 min) if that is more, up to `pool.max_size`: a pool sized for the last wave is warm for the next. When the window passes the target falls back and the idle surplus is discarded. Only VMs Nova reports ACTIVE count as warm and can be claimed |
 | **Config compiler** | on `NOTIFY` | renders, signs and pushes (see [gateway data flow](gateway-data-flow.md)); debounced |
 | **Reaper** | 1 s | queues teardown for expired leases and frees quarantined addresses whose window has passed |
 | **Reconciler** | 60 s | compares the database, OpenStack and the gateways and repairs drift, only after a 30 s grace so it never races a running saga |

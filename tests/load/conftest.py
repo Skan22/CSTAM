@@ -16,10 +16,12 @@ def world() -> Iterator[World]:
     dsn = os.environ.get("IPO_LAB_DSN")
     if not dsn:
         pytest.skip("run through `uv run python -m load.run` (needs the namespace lab)")
-    env = {"IPO_WORKERS": os.environ.get("IPO_LOAD_WORKERS", "8"),
+    env = {"IPO_WORKERS": os.environ.get("IPO_LOAD_WORKERS", "48"),
            "IPO_FAKE_BOOT_SECONDS": os.environ.get("IPO_LOAD_BOOT_SECONDS", "0"),
            "IPO_FAKE_STATE": str(Path(os.environ["IPO_LAB_WORKDIR"]) / "fake-cloud.json")}
     w = boot(Path(os.environ["IPO_LAB_WORKDIR"]), dsn, env, dns=True)
+    # The pool follows only the targets the tests set (test_pool_growth turns demand growth on).
+    w.cp.api("PATCH", "/v1/settings", {"demand_window_seconds": 0})
     try:
         yield w
     finally:

@@ -15,7 +15,7 @@ afterEach(() => {
 
 const data = {
   "GET /v1/gateways": { gateways: [] },
-  "GET /v1/pool": { size: 0, target: 0, free: 0, leased: 0, draining: 0, quarantined: 0 },
+  "GET /v1/pool": { size: 0, target: 0, effective_target: 0, free: 0, leased: 0, draining: 0, quarantined: 0 },
   "GET /v1/teams": [],
   "GET /v1/ipam": { total: 2, counts: { free: 1, leased: 1 }, leases: [
     { ip: "10.0.0.5", state: "leased", team: "alpha", expires_at: null, quarantined_until: null },
