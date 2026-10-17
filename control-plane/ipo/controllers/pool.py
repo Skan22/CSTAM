@@ -51,6 +51,7 @@ class PoolManager:
             return PoolReport(0, 0, remaining)
 
         with self._connect() as conn:
+            self._trim(conn, target)
             unfinished = [
                 r[0] for r in conn.execute(
                     "SELECT host(ip) FROM leases WHERE state = 'pooled' AND server_id IS NULL"
@@ -81,6 +82,21 @@ class PoolManager:
             failed=len(outcomes) - outcomes.count("ok"),
             backoff_seconds=self._backoff if quota_hit else 0.0,
         )
+
+    def _trim(self, conn: psycopg.Connection, target: int) -> None:
+        """Discard idle warm VMs beyond `target`, so lowering the target stops paying for them.
+        A VM a team is claiming at this moment is skipped: the claim holds its row lock."""
+        surplus = leases.counts(conn).get("pooled", 0) - target
+        if surplus <= 0:
+            return
+        with conn.transaction():
+            rows = conn.execute(
+                "UPDATE leases SET state = 'draining' WHERE ip IN (SELECT ip FROM leases"
+                " WHERE state = 'pooled' AND server_id IS NOT NULL ORDER BY ip DESC LIMIT %s"
+                " FOR UPDATE SKIP LOCKED) RETURNING host(ip)", (surplus,)).fetchall()
+        quarantine = runtime_settings.effective(conn, self._settings).quarantine_seconds
+        for (ip,) in rows:
+            release_resources(conn, self._cloud, ip, quarantine_seconds=quarantine)
 
     def _provision(self, ip: str) -> str:
         with self._connect() as conn:

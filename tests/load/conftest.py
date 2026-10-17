@@ -17,7 +17,8 @@ def world() -> Iterator[World]:
     if not dsn:
         pytest.skip("run through `uv run python -m load.run` (needs the namespace lab)")
     env = {"IPO_WORKERS": os.environ.get("IPO_LOAD_WORKERS", "8"),
-           "IPO_FAKE_BOOT_SECONDS": os.environ.get("IPO_LOAD_BOOT_SECONDS", "0")}
+           "IPO_FAKE_BOOT_SECONDS": os.environ.get("IPO_LOAD_BOOT_SECONDS", "0"),
+           "IPO_FAKE_STATE": str(Path(os.environ["IPO_LAB_WORKDIR"]) / "fake-cloud.json")}
     w = boot(Path(os.environ["IPO_LAB_WORKDIR"]), dsn, env, dns=True)
     try:
         yield w
@@ -36,12 +37,21 @@ def sql() -> Callable[[str], str]:
 
 
 @pytest.fixture(scope="session")
-def record() -> Callable[[str, Burst, dict[str, Any]], None]:
-    def write(name: str, burst: Burst, extra: dict[str, Any]) -> None:
-        out = os.environ.get("IPO_LAB_WORKDIR")
-        line = {"scenario": name, **extra, **burst.summary()}
+def emit() -> Callable[[str, dict[str, Any]], None]:
+    """Print a measurement and append it to load-report.jsonl, which `load.report` turns into
+    the benchmark tables."""
+    def write(name: str, data: dict[str, Any]) -> None:
+        line = {"scenario": name, **data}
         print("\n" + json.dumps(line))
+        out = os.environ.get("IPO_LAB_WORKDIR")
         if out:
             with (Path(out).parent / "load-report.jsonl").open("a") as f:
                 f.write(json.dumps(line) + "\n")
+    return write
+
+
+@pytest.fixture(scope="session")
+def record(emit: Callable[[str, dict[str, Any]], None]) -> Callable[[str, Burst, dict[str, Any]], None]:
+    def write(name: str, burst: Burst, extra: dict[str, Any]) -> None:
+        emit(name, {**extra, **burst.summary()})
     return write

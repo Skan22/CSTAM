@@ -36,7 +36,7 @@ def draw(d: tui.Dash, width: int = 120, height: int = 36) -> str:
 def test_every_part_of_the_screen_is_drawn() -> None:
     text = draw(sample_dash())
     for part in ("gw-a", "gw-b", "MASTER", "BACKUP", "holds 10.0.0.100", "alpha.cstam.felcloud.tn",
-                 "live requests through the VIP", "req/s", "events", "register", "heal"):
+                 "live requests through the VIP", "req/s", "events", "add", "heal"):
         assert part in text, part
     assert "SPLIT BRAIN" not in text
 
@@ -77,7 +77,7 @@ def test_every_key_hint_fits_in_120_columns_with_the_cloud_key_added() -> None:
     d = sample_dash()
     d.cloud = {"region": "North-Africa", "servers": [{"status": "ACTIVE"}] * 6, "elapsed": 84}
     text = draw(d, 120, 36)
-    for label in ("register", "delete", "unknown", "fail over", "kill VM", "split brain", "heal",
+    for label in ("add", "del", "burst", "expire", "404", "failover", "kill VM", "split", "heal",
                   "rate", "cloud", "quit"):
         assert label in text, label
     assert "North-Africa · 6 VMs · built in 1:24" in text

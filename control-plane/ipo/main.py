@@ -10,6 +10,7 @@ Configuration comes from the environment:
     IPO_JWT_SECRET     at least 32 bytes (required)
     IPO_CLOUD          `openstack` (default) or `fake`
     IPO_FAKE_BOOT_SECONDS  with `fake`: how long each server takes to boot (default 0)
+    IPO_FAKE_STATE     with `fake`: a file that keeps the fake cloud across restarts
     IPO_SIGNING_KEY    base64 Ed25519 seed; generated (and warned about) if unset
     IPO_AGENTS         gw-a=https://10.0.0.11:8443,gw-b=https://10.0.0.12:8443
                        (with IPO_CLOUD=fake and no IPO_AGENTS, in-process agent doubles are used)
@@ -20,7 +21,7 @@ Configuration comes from the environment:
                        IPO_DNS_TSIG_NAME / _SECRET / _ALGORITHM)
     IPO_GRAFANA_URL    Grafana the dashboard may embed: an http(s) URL, or a path such as /grafana
                        when the same front serves both (optional)
-    IPO_WORKERS        saga worker threads (default 8)
+    IPO_WORKERS        saga worker threads (default 24)
     IPO_BIND           host:port for the API (default 0.0.0.0:8000)
     IPO_MIGRATE        `1` to run migrations at start
     IPO_ADMIN_EMAIL / IPO_ADMIN_PASSWORD   creates or resets this admin at start
@@ -62,7 +63,7 @@ from ipo.controllers.pool import PoolManager
 from ipo.controllers.reaper import Reaper
 from ipo.controllers.reconciler import Reconciler
 from ipo.controllers.register_saga import Deps, Prober
-from ipo.controllers.workers import build_runner, run_leader, run_worker
+from ipo.controllers.workers import JobWakeups, build_runner, run_leader, run_worker
 from ipo.db.migrate import upgrade
 from ipo.domain import leases
 from ipo.domain.signing import Signer
@@ -145,7 +146,8 @@ def build_runtime(
     fake = env.get("IPO_CLOUD") == "fake"
     if cloud is None:
         if fake:
-            cloud = FakeCloud(boot_seconds=float(env.get("IPO_FAKE_BOOT_SECONDS", "0")))
+            cloud = FakeCloud(boot_seconds=float(env.get("IPO_FAKE_BOOT_SECONDS", "0")),
+                              state_file=env.get("IPO_FAKE_STATE") or None)
         else:
             from ipo.adapters.openstack.sdk import OpenStackCloud
             cloud = OpenStackCloud.from_env(env, base)
@@ -184,11 +186,13 @@ def build_runtime(
     def thread(name: str, target: Callable[[], object]) -> None:
         rt.threads.append(threading.Thread(target=target, name=name, daemon=True))
 
-    for i in range(int(env.get("IPO_WORKERS", "8"))):
+    wakeups = JobWakeups()
+    thread("job-wakeups", partial(wakeups.run, connect, stop))
+    for i in range(int(env.get("IPO_WORKERS", "24"))):
         runner = build_runner(connect, deps, worker_id=f"{socket.gethostname()}-{os.getpid()}-{i}")
-        thread(f"worker-{i}", partial(run_worker, runner, stop))
+        thread(f"worker-{i}", partial(run_worker, runner, stop, wakeups=wakeups))
     thread("pool", lambda: run_leader(
-        connect, "pool", stop, 5.0, lambda: pool.reconcile(target=live().pool_target)))
+        connect, "pool", stop, 2.0, lambda: pool.reconcile(target=live().pool_target)))
     thread("compiler", lambda: compiler.run(stop))
     thread("reaper", lambda: reaper.run(stop))
     thread("reconciler", lambda: reconciler.run(stop))

@@ -7,8 +7,8 @@ ip_pool:
   last: 10.20.0.109         # 100 addresses
   reserved: []              # addresses Neutron owns inside the range (gateway, DHCP, router ports)
 pool:
-  target_size: 5            # warm-pool target; re-set from M0 boot-time measurement
-  max_parallel_boots: 3
+  target_size: 12           # warm VMs kept booted: covers a 10-team burst with margin, claimed in ~1 s
+  max_parallel_boots: 6     # concurrent VM boots when refilling the pool or on the cold path
   reserve_free_ips: 5       # quota guard: refuse registration below this many free IPs
 lease:
   ttl_seconds: 7200

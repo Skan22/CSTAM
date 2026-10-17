@@ -109,3 +109,22 @@ def test_competing_registrations_for_one_name_have_exactly_one_winner(
         partial(register, client, "contested", f"c{i}") for i in range(10)])
     codes = Counter(r.status_code for r in replies)
     assert codes == {202: 1, 409: 9}, codes
+
+
+def test_transient_cloud_failures_during_a_burst_are_absorbed(
+    system: tuple[Runtime, TestClient, FakeCloud],
+) -> None:
+    """Nova and Neutron hiccup while fifteen teams register: the steps retry, and every team
+    still ends active on its own address. Two failures per call is below the three attempts a
+    step gets, so no team can be unlucky enough to fail."""
+    rt, client, cloud = system
+    wait_for(lambda: client.get("/v1/pool").json()["size"] == rt.settings.pool_target)
+    for method in ("ensure_port", "ensure_server", "set_server_metadata"):
+        cloud.inject(method, times=2)
+    replies = burst([partial(register, client, f"flaky-{i:02d}", f"f{i}") for i in range(TEAMS)])
+    regs = [r.json() for r in replies]
+    wait_for(lambda: all(client.get(f"/v1/teams/{r['team_id']}").json()["state"] == "active"
+                         for r in regs), timeout=90)
+    assert len({r["ip"] for r in regs}) == TEAMS
+    states = {client.get(f"/v1/jobs/{r['job_id']}").json()["state"] for r in regs}
+    assert states == {"succeeded"}

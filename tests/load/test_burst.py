@@ -5,6 +5,7 @@ serves from the right sandbox. The numbers go to `load-report.jsonl` for the ben
 """
 
 import os
+import time
 from collections.abc import Callable
 
 import pytest
@@ -13,7 +14,7 @@ from chaos.world import World
 from lab.stack import EDGE_CLIENT, wait_for
 from load.burst import Burst, Registrar, fetch_through
 
-SIZES = [int(n) for n in os.environ.get("IPO_LOAD_SIZES", "10,20,30").split(",")]
+SIZES = [int(n) for n in os.environ.get("IPO_LOAD_SIZES", "10,20,30,50").split(",")]
 ROUNDS = int(os.environ.get("IPO_LOAD_ROUNDS", "1"))
 # Every sandbox answering within this long of the burst starting is the bar for a full burst.
 BUDGET_S = float(os.environ.get("IPO_LOAD_BUDGET", "30"))
@@ -21,6 +22,16 @@ BUDGET_S = float(os.environ.get("IPO_LOAD_BUDGET", "30"))
 
 def registrar(w: World) -> Registrar:
     return Registrar(w.cp.api, fetch_through(w.vip, EDGE_CLIENT), w.plat["domain"])
+
+
+def settle(w: World, pool: int) -> None:
+    """Wait until the warm pool is exactly `pool` VMs and nothing is still being torn down or
+    quarantined, so a burst is measured on a quiet platform and not against the last one's cleanup."""
+    def quiet() -> bool:
+        p = w.cp.api("GET", "/v1/pool")[1]
+        return bool(p["size"] == pool and p["draining"] == 0 and p["quarantined"] == 0)
+    wait_for(quiet, f"a quiet platform with {pool} warm VMs", 180, 0.5)
+    time.sleep(1.0)
 
 
 def clear(w: World, prefix: str) -> None:
@@ -43,8 +54,8 @@ def test_burst_larger_than_the_warm_pool_still_completes(world: World,
                                                          record: Callable[..., None]) -> None:
     """More simultaneous teams than warm VMs: the surplus takes the cold path and must still end
     up active, on distinct addresses."""
-    world.cp.api("PATCH", "/v1/settings", {"pool_target": 3})
-    wait_for(lambda: world.cp.api("GET", "/v1/pool")[1]["size"] >= 3, "a pool of 3", 60, 0.5)
+    world.cp.api("PATCH", "/v1/settings", {"pool_target": 3, "quarantine_seconds": 1})
+    settle(world, 3)
     burst = registrar(world).run(12, "cold")
     record("burst-12-over-pool-3", burst, {"pool_target": 3})
     check(burst)
@@ -56,9 +67,9 @@ def test_burst_larger_than_the_warm_pool_still_completes(world: World,
 @pytest.mark.parametrize("rnd", range(ROUNDS))
 def test_simultaneous_registrations(world: World, record: Callable[..., None], size: int,
                                     rnd: int) -> None:
-    world.cp.api("PATCH", "/v1/settings", {"pool_target": size})
+    world.cp.api("PATCH", "/v1/settings", {"pool_target": size, "quarantine_seconds": 1})
     prefix = f"b{size}r{rnd}"
-    wait_for(lambda: world.cp.api("GET", "/v1/pool")[1]["size"] >= size, "a warm pool", 120, 0.5)
+    settle(world, size)
     burst = registrar(world).run(size, prefix)
     record(f"burst-{size}", burst, {"round": rnd, "pool_target": size})
     check(burst)

@@ -7,6 +7,7 @@ from ipo.adapters.openstack.base import QuotaExceeded
 from ipo.adapters.openstack.fake import FakeCloud
 from ipo.controllers.pool import PoolManager
 from ipo.domain import leases
+from ipo.domain.registration import register_team
 from tests.helpers import make_env
 
 
@@ -95,3 +96,36 @@ def test_pooled_resources_carry_the_recognition_tag(dsn: str) -> None:
     assert len(cloud.list_ports()) == 2 and len(cloud.list_servers()) == 2
     with connect() as c:
         assert isinstance(c, psycopg.Connection)
+
+
+def test_lowering_the_target_discards_only_the_surplus_idle_vms(dsn: str) -> None:
+    settings, cloud, connect = make_env(dsn, quarantine_seconds=0)
+    pool = PoolManager(cloud, settings, connect)
+    pool.reconcile(target=6)
+    with connect() as c:
+        reg = register_team(c, settings, slug="alpha", owner="o", idempotency_key="k")
+    assert reg.path == "warm"
+    pool.reconcile(target=2)
+    with connect() as c:
+        counts = leases.counts(c)
+        assert counts["pooled"] == 2 and counts["leased"] == 1  # the claimed VM is not touched
+        assert leases.get(c, reg.ip).state == "leased"
+    assert len(cloud.servers) == len(cloud.ports) == 3
+    pool.reconcile(target=2)  # at target: nothing more to do
+    assert len(cloud.servers) == 3
+
+
+def test_a_fake_cloud_with_a_state_file_survives_a_restart(tmp_path: object) -> None:
+    from pathlib import Path
+    state = Path(str(tmp_path)) / "cloud.json"
+    first = FakeCloud(state_file=state)
+    port = first.ensure_port(name="p", ip="10.0.0.1")
+    server = first.ensure_server(name="s", port_id=port.id, metadata={"a": "b"})
+    first.set_server_metadata(server.id, {"c": "d"})
+    again = FakeCloud(state_file=state)
+    assert again.list_ports() == [port]
+    assert again.list_servers()[0].metadata == {"a": "b", "c": "d"}
+    newer = again.ensure_port(name="q", ip="10.0.0.2")
+    assert newer.id != port.id  # ids keep counting
+    again.delete_server(server.id)
+    assert FakeCloud(state_file=state).list_servers() == []

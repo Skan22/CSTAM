@@ -10,6 +10,9 @@ sh lab/fetch-tools.sh validators   # Loki, Tempo, Alloy, Caddy, amtool, Quadlet 
 uv run pytest                      # deploy/, isolation/test_model.py; the labs skip
 uv run python -m chaos.run         # about 4 minutes
 uv run python -m isolation.run     # about 90 seconds
+uv run python -m load.run          # simultaneous registrations, lifecycle, benchmarks (about 12 minutes)
+uv run python -m load.bench        # load + chaos suites, then the report tables (about 25 minutes)
+uv run python -m isolation.cloud_probe --clouds ~/clouds.yaml   # the isolation probes on the real cloud
 uv run python -m chaos.demo        # interactive demo dashboard (--auto: scripted and narrated)
 uv run python -m chaos.demo --clouds ~/clouds.yaml --auto   # build the real cloud first, tear it down after
 ```
@@ -18,6 +21,7 @@ uv run python -m chaos.demo --clouds ~/clouds.yaml --auto   # build the real clo
 | --- | --- |
 | `chaos/` | Two gateways with real keepalived, Traefik and ipo-agent, a sandbox backend and the real control plane, under steady load through the VIP: failover gaps for VM death, Traefik crashes, keepalived stops, manual failover through the agent, and a partition that makes two MASTERs (the split-brain metric and event fire, and healing leaves one). Also per-team traffic from Traefik's access log to the API. |
 | `isolation/` | Every source, destination, address and port of the platform against `security-groups.yaml`, through the host firewall the `hardening` role renders and a bridge-level emulation of Neutron port security and security groups; rerouting attacks, forged frames, forged VRRP, per-source rate limits, and each layer alone. `python -m isolation.real` runs the same probes against a deployment (`.ci/isolation-dev.sh`). Results: `docs/reports/isolation.md`. |
+| `load/` | The same lab under load: 10 to 50 teams registering at the same instant (each must end `active`, on its own address, served by its own sandbox), the lifecycle of expiring teams against real Traefik and a DNS server taking signed updates, cold and warm provisioning latency, config rollback, throughput across 30 teams, and the control plane killed under load. `bench.py` runs it with the chaos suite and `report.py` writes the tables of [the benchmark report](../docs/reports/benchmarks.md). |
 | `deploy/` | Every Ansible template rendered per host with Ansible's precedence and read by its real program at the pinned version; every Quadlet through Podman's generator; Grafana behind the real front. See `ansible/README.md`. |
 | `lab/` | The namespace lab (`netns.py`), the real stack (`stack.py`), and `render.py`, which renders role templates and resolves role variables the way Ansible does. |
 

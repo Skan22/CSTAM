@@ -48,6 +48,15 @@ class Report:
         """The longest stretch with no successful response: the outage a user would feel."""
         return max((o.seconds for o in self.outages), default=0.0)
 
+    def percentile(self, p: float) -> float:
+        """Latency (s) below which a fraction `p` of the successful requests completed."""
+        xs = sorted(s.latency for s in self.samples if s.ok)
+        return xs[min(len(xs) - 1, int(len(xs) * p))] if xs else 0.0
+
+    @property
+    def duration(self) -> float:
+        return max((s.at for s in self.samples), default=0.0)
+
     def summary(self) -> dict[str, object]:
         return {
             "requests": len(self.samples), "failed": len(self.failed), "slow": len(self.slow),
@@ -85,9 +94,11 @@ def outages(samples: list[Sample]) -> list[Outage]:
 
 
 class LoadGen:
-    def __init__(self, host: str, target: str, *, port: int = 80, rate: float = 50,
+    def __init__(self, host: str | list[str], target: str, *, port: int = 80, rate: float = 50,
                  timeout: float = 1.0, slow_after: float = 0.25, source: str | None = None) -> None:
-        self.host, self.target, self.port = host, target, port
+        """`host` may be a list: requests are spread over it in turn."""
+        self.hosts = [host] if isinstance(host, str) else list(host)
+        self.target, self.port = target, port
         self.rate, self.timeout, self.slow_after, self.source = rate, timeout, slow_after, source
         self.samples: list[Sample] = []
         self.t0 = 0.0
@@ -97,14 +108,14 @@ class LoadGen:
     def now(self) -> float:
         return time.monotonic() - self.t0
 
-    async def _one(self, at: float) -> None:
+    async def _one(self, at: float, host: str) -> None:
         start = time.monotonic()
         via, err, ok = "", "", False
         try:
             async with asyncio.timeout(self.timeout):
                 reader, writer = await asyncio.open_connection(
                     self.target, self.port, local_addr=(self.source, 0) if self.source else None)
-                writer.write(f"GET / HTTP/1.1\r\nHost: {self.host}\r\nConnection: close\r\n\r\n".encode())
+                writer.write(f"GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
                 await writer.drain()
                 raw = await reader.read(4096)
                 writer.close()
@@ -125,7 +136,7 @@ class LoadGen:
         pending: set[asyncio.Task[None]] = set()
         n = 0
         while not self._stop.is_set():
-            t = asyncio.create_task(self._one(self.now()))
+            t = asyncio.create_task(self._one(self.now(), self.hosts[n % len(self.hosts)]))
             pending.add(t)
             t.add_done_callback(pending.discard)
             n += 1

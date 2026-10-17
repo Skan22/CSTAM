@@ -39,11 +39,12 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "ipo/api/*" = ["B008"]  # FastAPI dependencies are declared as parameter defaults
+"bench/*" = ["E501", "E402"]  # a manual benchmark script
 
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["ipo", "tests"]
+files = ["ipo", "tests", "bench"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

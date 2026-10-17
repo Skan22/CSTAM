@@ -4,11 +4,11 @@ gateways, DNS, the cloud and the address pool, without anyone asking, and the ad
 Timings go to `load-report.jsonl` for the benchmark report.
 """
 
-import json
 import os
+import statistics
 import time
 from collections.abc import Callable
-from pathlib import Path
+from typing import Any
 
 from chaos.world import World
 from lab.stack import EDGE_CLIENT, wait_for
@@ -18,21 +18,12 @@ TEAMS = int(os.environ.get("IPO_LIFECYCLE_TEAMS", "10"))
 QUARANTINE = 5
 
 
-def write(name: str, data: dict[str, object]) -> None:
-    line = {"scenario": name, **data}
-    print("\n" + json.dumps(line))
-    out = os.environ.get("IPO_LAB_WORKDIR")
-    if out:
-        with (Path(out).parent / "load-report.jsonl").open("a") as f:
-            f.write(json.dumps(line) + "\n")
-
-
 def leases_by_state(w: World) -> dict[str, int]:
     return dict(w.cp.api("GET", "/v1/ipam")[1]["counts"])
 
 
 def test_expired_teams_disappear_from_every_layer_and_their_addresses_return(
-    world: World, sql: Callable[[str], str],
+    world: World, sql: Callable[[str], str], emit: Callable[[str, dict[str, Any]], None],
 ) -> None:
     w = world
     w.cp.api("PATCH", "/v1/settings", {"pool_target": 0, "quarantine_seconds": QUARANTINE})
@@ -53,6 +44,7 @@ def test_expired_teams_disappear_from_every_layer_and_their_addresses_return(
     sql("UPDATE leases SET expires_at = now() - interval '1 second' WHERE team_id IN"
         " (SELECT id FROM teams WHERE slug LIKE 'exp-%')")
     seen: dict[str, float] = {}
+    freed: dict[str, float] = {}  # address -> seconds until it was free again
 
     def check() -> bool:
         now = time.monotonic() - t0
@@ -64,16 +56,20 @@ def test_expired_teams_disappear_from_every_layer_and_their_addresses_return(
                  if t["slug"].startswith("exp-")]
         if "deleted" not in seen and all(t["state"] == "deleted" for t in teams):
             seen["deleted"] = now
-        counts = leases_by_state(w)
-        if "freed" not in seen and "deleted" in seen and counts.get("quarantined", 0) == 0:
-            seen["freed"] = now
+        for lease in w.cp.api("GET", "/v1/ipam")[1]["leases"]:
+            if lease["ip"] in ips and lease["state"] == "free":
+                freed.setdefault(lease["ip"], now)
+        if len(freed) == len(ips):
+            seen["freed"] = max(freed.values())
         return "freed" in seen and "route" in seen and "dns" in seen
 
     wait_for(check, "every expired team to be purged", 120, 0.25)
 
     after = leases_by_state(w)
-    write("lifecycle-expiry", {
+    emit("lifecycle-expiry", {
         "teams": TEAMS, "quarantine_s": QUARANTINE, **{f"{k}_s": round(v, 2) for k, v in seen.items()},
+        "recycle_overhead_p50_s": round(statistics.median(freed.values()) - QUARANTINE, 2),
+        "recycle_overhead_max_s": round(max(freed.values()) - QUARANTINE, 2),
         "leased_before": before.get("leased", 0), "leased_after": after.get("leased", 0)})
     assert after.get("leased", 0) == before.get("leased", 0) - TEAMS
     assert after.get("draining", 0) == 0 and after.get("quarantined", 0) == 0

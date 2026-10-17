@@ -67,6 +67,7 @@ the team, claim a lease, create the job. Everything after that is a saga.
 | `provision` | cold path only: create the port and boot a VM on the reserved fixed IP (skipped if the lease already has one) | none of its own: the claim's undo releases a cold VM and port |
 | `personalize` | set `ipo.team` and `ipo.slug` metadata on the VM | clear them |
 | `route` | insert the route and `NOTIFY` the compiler | remove the route |
+| `dns` | publish `<slug>.<domain>` when the zone has per-team records (`IPO_DNS=rfc2136`); a no-op with the default wildcard | withdraw the record |
 | `converge` | wait until **both** gateways have acknowledged a version containing the host | - |
 | `probe` | request the host through the VIP until it answers | - |
 | `activate` | team `ACTIVE`, audit entry, `team.active` event | - |
@@ -89,18 +90,26 @@ Shared by the reaper (expiry) and `DELETE /v1/teams/{id}`. Order matters: traffi
 2. `await_route_removal`: both gateways acknowledge a config without the route. If one is down
    this logs and continues, because a dead gateway must not pin an address forever; quarantine
    and the reconciler's re-push bound the exposure.
-3. `release`: delete the VM, then the port; lease to `quarantined`.
-4. `finalize`: team `deleted`, audit entry, `team.deleted` event.
+3. `unpublish_dns`: withdraw the team's record (no-op in wildcard mode).
+4. `release`: delete the VM, then the port; lease to `quarantined` with its team, server and port
+   links cleared; then **verify** that no server or port named for the address remains and the
+   lease carries nothing of the old team. If anything is left the step fails and is retried (the
+   retry deletes the leftovers even though the lease is already quarantined), so an address is
+   never recycled half-cleaned.
+5. `finalize`: team `deleted`; the team's logins, traffic history and recent requests are
+   purged (the row stays, so a name is never reused); audit entry listing what was purged;
+   `team.deleted` event.
 
-Teardown only moves forward (no undo); a job that fails is finished by the reconciler.
+Teardown only moves forward (no undo); a job that fails is finished by the reconciler. A team
+token is rejected as soon as its team is deleted, without waiting for it to expire.
 
 ## Controllers
 
 | Controller | Interval | Does |
 | --- | --- | --- |
-| **Pool manager** | periodic | keeps `pool.target_size` VMs booted on reserved addresses, at most `max_parallel_boots` at once, with exponential backoff (up to 5 min) on quota or cloud errors |
+| **Pool manager** | 2 s | keeps `pool.target_size` VMs booted on reserved addresses, at most `max_parallel_boots` at once, with exponential backoff (up to 5 min) on quota or cloud errors; discards idle VMs beyond the target when it is lowered |
 | **Config compiler** | on `NOTIFY` | renders, signs and pushes (see [gateway data flow](gateway-data-flow.md)); debounced |
-| **Reaper** | 10 s | queues teardown for expired leases and frees quarantined addresses whose window has passed |
+| **Reaper** | 1 s | queues teardown for expired leases and frees quarantined addresses whose window has passed |
 | **Reconciler** | 60 s | compares the database, OpenStack and the gateways and repairs drift, only after a 30 s grace so it never races a running saga |
 
 Each controller runs on one replica at a time, chosen by a Postgres advisory lock.
@@ -118,6 +127,8 @@ Each repair is idempotent and counted in `ipo_reconciler_repairs_total{rule}`.
 | `stuck_lease` | `draining` or `quarantined` past its deadline | finish the transition |
 | `stuck_team` | a `draining` team whose teardown job died | finish it |
 | `gateway_behind` | a gateway's live version is below the latest | re-push |
+| `stale_dns` | a record for a team that is not `ACTIVE` (per-team DNS only) | withdraw it |
+| `missing_dns` | an `ACTIVE` team with no record (per-team DNS only) | publish it |
 
 The cloud is read once, first, and the database after, so a resource created between the two
 reads is already recorded and is never mistaken for an orphan.
@@ -155,7 +166,7 @@ Events on the stream: `team.active`, `team.draining`, `team.deleted`, `team.fail
 ## Runtime settings
 
 `PATCH /v1/settings` changes `pool_target`, `reserve_free_ips`, `lease_ttl_seconds`,
-`quarantine_seconds` and `max_parallel_boots` (each range-checked) without a restart; each change is recorded with who made it and appears in the audit log. Values default
+`quarantine_seconds` and `max_parallel_boots` (each range-checked) without a restart (teardown, the reconciler and the pool read them live); each change is recorded with who made it and appears in the audit log. Values default
 from `platform.yaml`.
 
 ## Audit

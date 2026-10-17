@@ -81,7 +81,7 @@ class Registrar:
     """Everything one burst needs from the platform under test."""
 
     api: Api
-    fetch: Fetch                    # (host) -> (status, body) through the gateway VIP
+    fetch: Fetch | None             # (host) -> (status, body) through the gateway VIP; None skips it
     domain: str
     timeout: float = 120
     poll: float = 0.1
@@ -111,6 +111,9 @@ class Registrar:
                 time.sleep(self.poll)
             else:
                 r.error = f"not active after {self.timeout}s (state {r.state})"
+                return r
+            if self.fetch is None:
+                r.routed_at = r.active_at
                 return r
             host = f"{slug}.{self.domain}"
             while time.monotonic() < deadline:

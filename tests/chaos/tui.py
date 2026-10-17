@@ -37,8 +37,8 @@ if TYPE_CHECKING:
 
 GW_COLOURS = th.GW_COLOURS
 STATE_COLOURS = th.STATE_COLOURS
-KEYS = [("r", "register"), ("d", "delete"), ("n", "unknown"), ("f", "fail over"), ("k", "kill VM"),
-        ("x", "split brain"), ("h", "heal"), ("l", "rate"), ("q", "quit")]
+KEYS = [("r", "add"), ("d", "del"), ("b", "burst"), ("e", "expire"), ("n", "404"), ("f", "failover"),
+        ("k", "kill VM"), ("x", "split"), ("h", "heal"), ("l", "rate"), ("q", "quit")]
 STAGES = ["build", "operate", "break", "teardown"]
 RATES = (4, 15, 40)
 SLUG = re.compile(r"[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?")
@@ -438,6 +438,34 @@ class Controller:
         wait_for(lambda: self.request(team.host).code == "404", "the route to go", 60, 0.2)
         self.d.log(f"{team.host} now answers 404: route removed", "ok")
 
+    BURST = 12
+
+    def burst(self) -> None:
+        """Register BURST teams at the same instant and report what the slowest one saw."""
+        from lab.stack import EDGE_CLIENT
+        from load.burst import Registrar, fetch_through
+
+        w = self.w
+        self.d.log(f"{self.BURST} x POST /v1/teams at the same instant", "act")
+        reg = Registrar(w.cp.api, fetch_through(w.vip, EDGE_CLIENT), self.d.domain)
+        result = reg.run(self.BURST, "burst")
+        s = result.summary()
+        if result.failures or result.duplicate_ips:
+            self.d.log(f"burst: {len(result.failures)} failed, duplicates {s['duplicate_ips']}", "bad")
+            return
+        self.d.log(f"{self.BURST} teams on {s['unique_ips']} different sandboxes, all answering "
+                   f"{result.wall:.1f}s after the first request ({s['paths']['warm']} warm, "
+                   f"{s['paths']['cold']} cold)", "ok")
+
+    def expire_burst(self) -> None:
+        """Delete the burst's teams, as their leases running out would."""
+        _, teams = self.w.cp.api("GET", "/v1/teams")
+        mine = [t for t in teams if t["slug"].startswith("burst-")]
+        self.d.log(f"leases of {len(mine)} burst teams run out: routes, VMs and addresses are purged",
+                   "act")
+        for t in mine:
+            self.w.cp.api("DELETE", f"/v1/teams/{t['id']}")
+
     def unknown(self) -> None:
         host = f"nobody-{int(time.time()) % 1000}.{self.d.domain}"
         s = self.request(host)
@@ -499,6 +527,8 @@ class Controller:
         table: dict[str, Callable[[], None]] = {
             "r": lambda: setattr(d, "prompt", ("register team", "")),
             "d": lambda: setattr(d, "prompt", ("delete team", "")),
+            "b": lambda: self.run("burst", self.burst),
+            "e": lambda: self.run("expire burst", self.expire_burst),
             "n": lambda: self.run("probe", self.unknown),
             "f": lambda: self.run("failover", self.failover),
             "k": lambda: self.run("kill primary", self.kill_primary),
@@ -539,7 +569,12 @@ def autopilot(c: Controller) -> None:
     say("Both are live. The signed config reached both gateways, verified and probed, before the swap.", 5)
     do(lambda: c.delete("bravo"))
     say("bravo's route is gone the same way, and alpha never noticed.", 4)
-    say("Scene 3 - failover: the control plane faults the primary; watch the stream", 3)
+    say("Scene 3 - twelve teams register in the same instant; every one gets its own sandbox", 3)
+    do(c.burst)
+    say("All twelve answer on their own subdomain, with the gateways still serving the others.", 6)
+    do(c.expire_burst)
+    say("Their leases end: routes, VMs and addresses are purged, and the addresses are reusable.", 6)
+    say("Scene 4 - failover: the control plane faults the primary; watch the stream", 3)
     do(c.failover)
     say("The VIP moved in a fraction of a second. Every request kept being answered.", 6)
     say("Clear the fault: the old primary rejoins as BACKUP and does not take the VIP back", 2)
@@ -549,7 +584,7 @@ def autopilot(c: Controller) -> None:
     say("The other gateway took over. Only the requests in flight at that instant could notice.", 6)
     say("Bring the dead VM back: it boots, runs keepalived, and rejoins as BACKUP", 2)
     do(c.heal)
-    say("Scene 4 - split brain: cut the heartbeat between healthy gateways", 3)
+    say("Scene 5 - split brain: cut the heartbeat between healthy gateways", 3)
     do(c.partition)
     say("Both claim the VIP. The control plane hears from both and raises the alarm.", 7)
     do(c.heal)

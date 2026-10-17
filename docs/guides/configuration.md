@@ -11,8 +11,8 @@ control plane and the tests.
 | --- | --- | --- |
 | `domain` | team hosts are `<slug>.<domain>` | `cstam.felcloud.tn` |
 | `ip_pool.cidr`, `first`, `last` | the sandbox range (also Neutron's allocation pool) | 10.20.0.0/24, `.10` to `.109` (100 addresses) |
-| `pool.target_size` | warm VMs kept ready | 5 |
-| `pool.max_parallel_boots` | concurrent boots | 3 |
+| `pool.target_size` | warm VMs kept ready | 12 |
+| `pool.max_parallel_boots` | concurrent boots | 6 |
 | `pool.reserve_free_ips` | registration refuses below this many unallocated addresses | 5 |
 | `lease.ttl_seconds` | how long a team lives before the reaper tears it down | 7200 |
 | `lease.quarantine_seconds` | an address rests this long after teardown | 60 |
@@ -57,7 +57,7 @@ internet, TCP from the internet to anything but the gateways, ports outside the 
 | `IPO_AGENT_CERT`, `IPO_AGENT_KEY`, `IPO_AGENT_CA` | mTLS material for talking to agents |
 | `IPO_VIP` | the VIP, for the registration probe |
 | `IPO_GRAFANA_URL` | Grafana to embed: an `http(s)` URL, or a path such as `/grafana` when one front serves both |
-| `IPO_WORKERS` | saga worker threads (default 8) |
+| `IPO_WORKERS` | saga worker threads (default 24) |
 | `IPO_BIND` | `host:port` for the API (default `0.0.0.0:8000`) |
 | `IPO_MIGRATE` | `1` to run migrations at start |
 | `IPO_ADMIN_EMAIL`, `IPO_ADMIN_PASSWORD` | create or reset this admin at start |

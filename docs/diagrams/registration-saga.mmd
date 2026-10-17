@@ -13,6 +13,7 @@ sequenceDiagram
   W->>OS: provision: cold path only, boot a VM on the fixed IP
   W->>OS: personalize: set ipo.team and ipo.slug metadata on the VM
   W->>W: route: insert the route row, NOTIFY ipo_routes_changed
+  W->>W: dns: publish the A record, only in per-team zones - the wildcard default has none
   CC->>G: signed config containing the host (both gateways)
   G-->>W: converge: both acked a version with the host
   W->>G: probe: request the host through the VIP until it answers
