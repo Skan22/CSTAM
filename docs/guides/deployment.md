@@ -122,7 +122,7 @@ DNS at all, `curl -H 'Host: <slug>.<domain>' http://<floating IP>/` reaches the 
 
 `.ci/pipeline.sh` runs, in order: control-plane lint, types and tests; Pulumi lint, types and
 mocked tests; system-test lint and types; Ansible lint, playbook syntax and every rendered config
-through its real program; the isolation lab; and (with `IPO_CI_CHAOS=1`) the chaos lab.
+through its real program; the isolation lab; and (with `IPO_CI_CHAOS=1` and `IPO_CI_LOAD=1`) the chaos and load labs.
 `.ci/pulumi.sh preview|up` is the pull-request and merge job; `.ci/isolation-dev.sh` is the
 nightly isolation check against a deployment.
 

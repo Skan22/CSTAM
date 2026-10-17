@@ -55,7 +55,7 @@ topology, of which the policy opens 105 (the positive controls), and checks verd
 the probing and the listening end ([results](../reports/isolation.md)): sandbox to sandbox on any
 port, sandbox to a gateway's management address or the agent port, sandbox to anything on mgmt-net
 (API, Postgres, Grafana, SSH), forged source IP/MAC, rerouting, forged VRRP and flooding. The same
-probes run against the real cloud ([real FelCloud run](../reports/isolation.md#real-felcloud-run)).
+probes run against the real cloud, where a sandbox also forges source IPs and a MAC and none of 32 forged packets is delivered ([real FelCloud run](../reports/isolation.md#real-felcloud-run)).
 
 ## Defence in depth (network)
 

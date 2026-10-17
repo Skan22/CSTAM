@@ -81,3 +81,27 @@ def test_the_first_team_is_unaffected(world: World) -> None:
     """The team that predates every burst still answers once they are all gone."""
     status, body = fetch_through(world.vip, EDGE_CLIENT)(world.host)
     assert status == 200 and "sandbox ok" in body
+
+
+def test_a_config_of_more_than_one_page_of_routers_is_applied(world: World,
+                                                              record: Callable[..., None]) -> None:
+    """Traefik's API lists 100 routers a page (its own included) and its "next page" header wraps
+    to page 1 on the last page. An agent that followed it blindly looped until its timeout and
+    rolled every config of about a hundred routers back, so registrations past the first page
+    failed. 95 teams plus the lab's own and the canary is past it."""
+    w = world
+    w.cp.api("PATCH", "/v1/settings", {"pool_target": 45, "quarantine_seconds": 1})
+    settle(w, 45)
+    first = registrar(w).run(45, "pg1")
+    check(first)
+    w.cp.api("PATCH", "/v1/settings", {"pool_target": 0})
+    settle(w, 0)
+    second = registrar(w).run(50, "pg2")  # all cold: 45 + 50 + the lab's team + the canary = 97
+    record("burst-past-one-page", second, {"routes_before": 45})
+    check(second)
+    body = w.cp.api("GET", "/v1/config/latest")[1]["body"]
+    assert body.count("Host(") >= 96, body.count("Host(")  # with Traefik's own, past the 100 a page
+    versions = w.cp.api("GET", "/v1/gateways")[1]["gateways"]
+    assert all(g["live_version"] for g in versions)
+    clear(w, "pg1")
+    clear(w, "pg2")

@@ -1,6 +1,6 @@
 # Jury presentation: Resilient IP Optimizer
 
-A 12-minute talk for the FelCloud technical representatives and the jury at CSTAM 3.0: fifteen
+A 12-minute talk (the slides are [`IPO-Jury-Deck.pdf`](IPO-Jury-Deck.pdf), built from the measurements by `build_deck.py`) for the FelCloud technical representatives and the jury at CSTAM 3.0: fifteen
 slides, what to say on each, what to show, and the questions to expect. Figures come from
 [the benchmark report](../reports/benchmarks.md); quote them as measured on the lab (real
 keepalived, Traefik and gateway agents on one laptop) or on FelCloud, as marked.
@@ -51,19 +51,21 @@ gateway outside the sandbox range."
 **Claim:** 10+ simultaneous registrations are fast and error-free.
 
 - Registration is a **saga** with idempotency keys, a database-enforced lease state machine, and a
-  **warm pool** (12 VMs booted ahead): a team is serving about **0.6 s** after its request.
-- Burst test: **10 / 20 / 30 / 50 teams at the same instant**, five rounds each: every one
-  `active`, on a distinct address, **served by its own sandbox**, zero failures. Whole burst
-  served in **≈1.2 s / 2.4 s / 3.3 s / 5.7 s** for 10 / 20 / 30 / 50 (lab).
+  **warm pool** (12 VMs booted ahead): a team is serving about **0.4 s** after its request.
+- Burst test: **10 / 20 / 30 / 50 / 90 teams at the same instant**, five rounds each (1,000 in
+  all): every one `active`, on a distinct address, **served by its own sandbox**, zero failures.
+  Whole burst served in **≈0.5 / 0.8 / 1.1 / 1.5 / 2.5 s** (lab).
 - Cold path (no warm VM): same platform overhead; the rest is Nova's boot. **FelCloud, 10 at once:
-  warm 1.5 s, cold about two minutes** (ten concurrent boots are far slower than one, 17 s): the
-  warm pool is the lever.
+  warm 1.5 s (20 at once: 2.4 s), cold about two minutes** (ten concurrent boots are far slower
+  than one, 17 s): so the pool **grows to the last 15 minutes' registrations** and shrinks after.
 - Absorbs trouble: transient Nova/Neutron errors during a burst, a retry storm on one key (one
   team), ten claims on one name (one winner).
 
 **What the benchmark found:** the first measurement of 30 teams took **15 s**. Traefik applies at
 most one provider change per 2 s by default, so every config version cost two seconds on each
-gateway. One line (`providersThrottleDuration: 100ms`) made it **3 s**. Say this: it shows the
+gateway. Fixing that, batching config versions properly and waking 48 workers by `NOTIFY` made it
+**1.1 s**. A 90-team test then found that the agent could not read more than 100 routers from
+Traefik (a wrapping pagination header): fixed. Say this: it shows the
 tests find real things.
 
 ## 6. Dynamic hot reload
@@ -118,9 +120,10 @@ Split brain: detected by the control plane from both heartbeats, alarmed, and he
 ## 10. On the real cloud
 
 - `pulumi up` builds the whole platform on FelCloud (≈80 resources); `destroy` empties it in ≈30 s.
-- **10 simultaneous registrations on FelCloud:** warm all `active` in **1.5 s**; cold 108–128 s
-  (Nova); **10 teams torn down in 6 s**, addresses free 7.5 s later (5 s quarantine).
-- **Isolation probes from real VMs** with the real security groups: 255 probes, **0 leaks**.
+- **Simultaneous registrations on FelCloud:** 10 warm all `active` in **1.5 s**, 20 in **2.4 s**; cold
+  108–140 s (Nova); **20 teams torn down in 14 s**, addresses free about 7 s later (5 s quarantine).
+- **Isolation probes from real VMs** with the real security groups: 255 probes, **0 leaks**, and
+  **0 of 32 forged-source packets delivered** (port security, tested by forging).
 - **What the real cloud caught:** warm claims on still-booting VMs, the reconciler deleting VMs
   mid-boot, and teardown waiting on Nova's lingering DELETED entries (85 s → 6 s). All fixed.
 - What the real cloud taught us: hard anti-affinity fails (one compute host), floating IPs need the
@@ -141,8 +144,8 @@ rate limit, TLS to teams optional, eBPF not used.
 
 ## 13. Quality evidence
 
-353 control-plane tests against a real PostgreSQL, Go agent tests with `-race`, 72 dashboard
-tests, 67 deploy checks that load every rendered config into the real program, 46 chaos, 33 load
+354 control-plane tests against a real PostgreSQL, Go agent tests with `-race`, 72 dashboard
+tests, 67 deploy checks that load every rendered config into the real program, 46 chaos, 21 load
 and 35 isolation lab tests. `ruff`, `mypy --strict`, `go vet`, `tsc`,
 `ansible-lint` clean.
 

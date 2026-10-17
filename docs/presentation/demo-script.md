@@ -6,6 +6,13 @@ four minutes and adds the two things the jury scores in Phase 2, a **burst of si
 registrations** and **automated teardown**. Everything runs on one laptop, with real keepalived,
 Traefik and `ipo-agent`, and needs no root.
 
+## A recording already exists
+
+[`demo.mp4`](demo.mp4) (104 s, 1560×900, no narration) is this storyboard recorded from the real
+lab by `uv run python -m chaos.record`: the real dashboard reading real keepalived, Traefik and
+agents, drawn frame by frame with the caption bar saying what is shown. Use it as is, or as the
+picture under your own voice-over, or record a fresh take as below.
+
 ## Before recording
 
 ```bash
@@ -49,8 +56,8 @@ death, split brain), holding each caption for the time shown.
 
 Quote these from [the benchmark report](../reports/benchmarks.md), and say they are lab numbers:
 
-- a team is serving traffic about **0.6 s** after the request (warm path); **30 teams at once** are
-  all serving within about **3 s**, with no failures or duplicate addresses;
+- a team is serving traffic about **0.4 s** after the request (warm path); **30 teams at once** are
+  all serving within about **1 s** and **90** in 2.5 s, with no failures or duplicate addresses;
 - primary VM death: the longest gap in a 50 requests/s stream is about **0.55–0.7 s**; Traefik
   crash **1.3–1.5 s**; a deliberate failover **0.12 s**;
 - a team's route is gone about **2 s** after its lease ends, and its address is free again one

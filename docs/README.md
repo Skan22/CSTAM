@@ -35,7 +35,7 @@ Start here, then follow the section you need.
 | API | [Integration guide](api/integration.md) (auth, conventions, errors, every endpoint, events, DNS, client recipes), [OpenAPI](api/openapi.json), [Postman collection](api/ipo.postman_collection.json) |
 | Runbooks | [alerts](runbooks/alerts.md), [manual failover](runbooks/manual-failover.md), [promote replica](runbooks/promote-replica.md), [rotate certificates](runbooks/rotate-certs.md), [rebuild from zero](runbooks/rebuild-from-zero.md), [restore backup](runbooks/restore-backup.md) |
 | Reports | [benchmarks](reports/benchmarks.md), [isolation results](reports/isolation.md), [FelCloud survey](reports/felcloud-survey.md) |
-| Presenting | [jury presentation](presentation/jury-deck.md), [demo video script](presentation/demo-script.md) |
+| Presenting | [jury deck (PDF)](presentation/IPO-Jury-Deck.pdf) and [speaker notes](presentation/jury-deck.md), [demo video](presentation/demo.mp4) and [its script](presentation/demo-script.md) |
 | Components | [gateway agent](../gateway-agent/README.md), [dashboard](../dashboard/README.md), [Ansible](../ansible/README.md), [Quadlets](../quadlets/README.md), [Pulumi](../infra/pulumi/README.md), [system tests](../tests/README.md) |
 | Diagrams | sources and images in [`diagrams/`](diagrams) |
 

@@ -26,3 +26,8 @@ if [[ "${IPO_CI_CHAOS:-}" == 1 ]]; then
   echo "== chaos lab: real Traefik, keepalived and agent (about four minutes)"
   (cd tests && uv run python -m chaos.run -q)
 fi
+
+if [[ "${IPO_CI_LOAD:-}" == 1 ]]; then
+  echo "== load lab: 10 to 90 simultaneous registrations, expiry lifecycle, throughput (about seven minutes)"
+  (cd tests && uv run python -m load.run -q)
+fi

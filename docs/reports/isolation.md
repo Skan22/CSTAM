@@ -76,7 +76,8 @@ verdicts back and the temporary group are deleted afterwards.
 | `sbx-a` | | the management addresses of bastion, cp-1, cp-2, gw-a, gw-b, relay: 102 probes | **no host reached** (see below) |
 | `gw` | `sg-gateway.sandbox` | `sbx-a` and `sbx-b` | **TCP 80 reached both** (positive control); the other 16 ports of each blocked |
 
-255 probes, **0 leaks**. Notes on what the numbers mean:
+255 probes, **0 leaks**. A fourth VM, a listener in a relay's group, takes part in the port-security
+check below. Notes on what the numbers mean:
 
 - *Sandbox to sandbox is blocked on every port*, and the same probes from a machine in the gateway
   group do get through on port 80 and only port 80, so the block is the security group and not a
@@ -93,9 +94,17 @@ verdicts back and the temporary group are deleted afterwards.
   stock VMs, so the `gateway_network` role's policy route is missing and replies to edge-sourced
   traffic leave by the sandbox port, where port security drops them (the same finding as in the
   lab, above). The path is only provable once the Ansible roles have run.
-- Not exercised on the real cloud: forged source MAC/IP and forged VRRP (they need packets a
-  normal stack will not send; the lab does them), the host firewall (the roles have not been run
-  on real hosts), and internet-to-floating-IP probing (`isolation.real --as internet`).
+- *Port security, tested by forging.* `sbx-a` runs a script (as root, with raw sockets) that sends
+  to the listener on UDP 5140, the one port a sandbox may reach on a relay: an honest datagram, then
+  datagrams whose **source IP is forged** (a neighbouring sandbox's address, a gateway's, an address
+  nobody holds) and a raw Ethernet frame with a **forged source MAC**. The sender's log shows all
+  32 forged packets left the VM; the listener received the honest ones and **none of the forged
+  ones** (`port_security.forged_delivered: 0`). The same sender, run on a network without port
+  security (loopback), delivers all of them, so a silent listener is a block and not a broken
+  sender.
+- Not exercised on the real cloud: forged VRRP adverts (the lab does it), the host firewall (the
+  roles have not been run on real hosts), and internet-to-floating-IP probing
+  (`isolation.real --as internet`).
 
 ## Not covered
 

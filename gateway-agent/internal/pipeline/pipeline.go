@@ -486,7 +486,10 @@ func (h HTTPTraefik) Routers(ctx context.Context) ([]string, error) {
 		c = &http.Client{Timeout: 2 * time.Second}
 	}
 	out := []string{}
-	// Traefik pages this endpoint and names the next page in X-Next-Page.
+	seen := map[string]bool{}
+	// Traefik pages this endpoint and names the next page in X-Next-Page. On the last page it
+	// names page 1 again (the header wraps), so a page is followed only if it is later than the
+	// current one; and a name is never listed twice, so a stuck header cannot grow the answer.
 	for page, pages := "1", 0; page != "" && pages < 1000; pages++ {
 		url := strings.TrimRight(h.APIURL, "/") + "/api/http/routers?per_page=100&page=" + page
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -512,12 +515,15 @@ func (h HTTPTraefik) Routers(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		for _, r := range routers {
-			if name, ok := strings.CutSuffix(r.Name, "@file"); ok {
+			if name, ok := strings.CutSuffix(r.Name, "@file"); ok && !seen[name] {
+				seen[name] = true
 				out = append(out, name)
 			}
 		}
 		next := resp.Header.Get("X-Next-Page")
-		if next == page {
+		cur, _ := strconv.Atoi(page)
+		n, err := strconv.Atoi(next)
+		if err != nil || n <= cur {
 			break
 		}
 		page = next

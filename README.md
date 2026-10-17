@@ -11,8 +11,8 @@ control plane creates, routes, repairs and removes sandboxes automatically.
 
 - **Register a team, get a subdomain in seconds.** A pool of pre-booted VMs is claimed, a signed
   route is pushed to both gateways, and the host starts answering with no proxy restart: about
-  0.6 s alone, and 30 teams registering at the same instant are all serving in about 3 s, with no
-  failure and no shared address ([benchmarks](docs/reports/benchmarks.md)).
+  0.4 s alone, and 30 teams registering at the same instant are all serving in about 1 s (90, the
+  whole usable pool, in 2.5 s), with no failure and no shared address ([benchmarks](docs/reports/benchmarks.md)).
 - **Survive failure.** The gateway pair fails over in about 0.6 s when a VM dies and 1.3 to 2 s
   when Traefik dies, measured under load with the real software
   ([OpenStack HA](docs/architecture/openstack-ha.md)).
@@ -55,6 +55,7 @@ Needs Linux with unprivileged user namespaces; no root. Everything else is in
 | **[Gateway data flow](docs/architecture/gateway-data-flow.md)** | the three paths through a gateway |
 | [Control plane](docs/architecture/control-plane.md), [Security](docs/architecture/security.md) | lifecycle, state machine, API, threats (STRIDE per component) |
 | [API integration guide](docs/api/integration.md) | auth, errors, every endpoint, events, DNS, client code |
+| [Demo video](docs/presentation/demo.mp4), [jury deck](docs/presentation/IPO-Jury-Deck.pdf) | the scripted demo recorded from the real lab (104 s), and the presentation |
 | [Benchmark report](docs/reports/benchmarks.md) | provisioning, 10 to 50 simultaneous registrations, failover, recycling, load; lab and FelCloud |
 | [Guides](docs/README.md#guides) | getting started, deployment, configuration, operations, testing |
 | [Submission guide](docs/SUBMISSION.md) | deliverables, plan coverage, and the honest list of gaps |
@@ -77,8 +78,8 @@ Needs Linux with unprivileged user namespaces; no root. Everything else is in
 
 ## Status
 
-Verified: 353 control-plane tests against a real PostgreSQL, the Go agent with `-race`, 72
-dashboard tests, 28 infrastructure tests, 67 deploy checks, 46 chaos-lab, 18 load-lab and 35
+Verified: 354 control-plane tests against a real PostgreSQL, the Go agent with `-race`, 72
+dashboard tests, 28 infrastructure tests, 67 deploy checks, 46 chaos-lab, 21 load-lab and 35
 isolation-lab tests, `pulumi up` / `destroy`, an isolation run and a provisioning benchmark
 against the real FelCloud project. **Not yet verified:** the Ansible roles on real VMs and VRRP
 between two real OpenStack VMs. The full list is in the [submission guide](docs/SUBMISSION.md#gaps).

@@ -9,12 +9,12 @@ a few runs touched the real cloud.
 
 | Suite | Where | Proves | Count |
 | --- | --- | --- | --- |
-| Control plane | `control-plane/tests` | state machine, sagas and their crash recovery, reconciler rules, config compiler and signing, roles, team isolation of the API, traffic store, metrics, OpenAPI export; runs against a real PostgreSQL | 353 (+1 skipped) |
+| Control plane | `control-plane/tests` | state machine, sagas and their crash recovery, reconciler rules, config compiler and signing, roles, team isolation of the API, traffic store, metrics, OpenAPI export; runs against a real PostgreSQL | 354 (+1 skipped) |
 | Gateway agent | `gateway-agent/internal/*` | signature, policy, atomic swap, rollback, VRRP file handling, traffic parsing, with `-race` | 8 packages |
 | Dashboard | `dashboard/src` | pages, role-based navigation, session handling, Grafana embedding | 72 |
 | Pulumi | `infra/pulumi/tests` | the rules module against the spec, every CrossGuard policy, the whole program under Pulumi's mocks | 28 |
 | Deploy | `tests/deploy` | every Ansible template rendered per host and read by its real program (nft, keepalived, sshd, systemd, Quadlet generator, Caddy, promtool, amtool, Loki, Tempo, Alloy, PostgreSQL, Grafana) | 67 |
-| Load lab | `tests/load` | 10 to 50 simultaneous registrations against the real gateway stack, the expiry lifecycle with per-team DNS, cold and warm latency, rollback, throughput across 30 teams, the control plane killed under load | 18 (33 with the benchmark's five burst rounds) |
+| Load lab | `tests/load` | 10 to 90 simultaneous registrations against the real gateway stack, the expiry lifecycle with per-team DNS, cold and warm latency, rollback, throughput across 30 teams, the control plane killed under load | 21 (41 with the benchmark's five burst rounds) |
 | Chaos lab | `tests/chaos` | failover, hot reload, traffic, split brain on real keepalived, Traefik and agents | 46 |
 | Isolation lab | `tests/isolation` | every source, destination, address and port against `security-groups.yaml`, both layers and each alone | 35 |
 | System, lab-free | `tests/` | spec cross-checks, oracle, event parsing, dashboard rendering | 99 with `deploy` (49 lab tests skip outside the lab) |
@@ -50,8 +50,12 @@ address, and be served by *its own* sandbox (the lab backend echoes the address 
 It also expires leases and watches the route, the DNS record and the address disappear and come
 back, and kills `-9` the control plane under 100 requests/s. Results: [benchmarks](../reports/benchmarks.md).
 
-**Real cloud, no hosts needed.** `uv run python -m isolation.cloud_probe --clouds …` boots three
-probe VMs with the platform's real security groups and reads their verdicts back
+**The recorded demo.** `uv run python -m chaos.record out.mp4` runs the demo's autopilot against the
+real lab and renders every refresh of the dashboard to a frame for ffmpeg (about 100 s; the committed
+[`demo.mp4`](../presentation/demo.mp4) is one such run).
+
+**Real cloud, no hosts needed.** `uv run python -m isolation.cloud_probe --clouds …` boots four
+probe VMs with the platform's real security groups, forges packets from one of them, and reads the verdicts back
 ([isolation report](../reports/isolation.md#real-felcloud-run)); `uv run python -m bench.real_cloud
 --clouds …` (in `control-plane/`) runs the control plane against the real OpenStack API and
 measures VM boots, a burst of ten registrations (warm and cold), teardown and address recycling.
@@ -95,11 +99,12 @@ test:
 | real cloud | floating IP allocation failed with `ExternalIpAddressExhausted` unless the request names the external subnet | the program passes `subnet_id`; the demo's preflight does too |
 | real cloud | attaching a floating IP to the VIP port failed (`ExternalGatewayForFloatingIPNotFound`): it raced the router interface | the association depends on the router interface |
 | real cloud | the project had no key pair | the program uploads one |
-| load lab | Traefik applies at most one provider change per 2 s, so 30 simultaneous registrations took 15 s (every config version cost two seconds on each gateway) | `providersThrottleDuration: 100ms`: 3 s |
+| load lab | Traefik applies at most one provider change per 2 s, so 30 simultaneous registrations took 15 s (every config version cost two seconds on each gateway) | `providersThrottleDuration` 100 ms, then 25 ms with config batching that no longer waits a second: 30 teams in 1.1 s |
 | lifecycle tests | the quarantine an admin set at runtime was ignored by teardown | read through the runtime settings |
 | lifecycle tests | a teardown retried after a partial release trusted the already-quarantined lease and deleted nothing | the retry deletes what is left, then verifies |
 | real cloud | a "warm" registration could claim an address whose VM was still booting (the pool reserves an address before Nova boots it), waiting out the boot while reporting the warm path | only pooled leases with a running VM are claimable; the pool size counts those |
 | real cloud | the reconciler deleted VMs that were still building (a boot takes longer than its 30 s grace and the VM is not yet matched to its port), and then failed their teams | a VM building is not an orphan; its name says which address it belongs to |
+| load lab (90 teams) | the agent paged Traefik's router list by following `X-Next-Page`, which on the last page points back to page 1; with more than about a hundred routers (95 teams) it looped until the converge timeout and rolled every config back | follow a page only if it is later, and never list a name twice: 95 teams served |
 | real cloud | Nova keeps listing a deleted server as DELETED and an accepted delete as ACTIVE with task_state `deleting`: teardown's check for leftovers waited out its timeout, and a recycled address would have found a dead server under the same name | those are not counted or reused: teardown of ten teams went from 85 s to 4.5 s |
 
 ## Not tested

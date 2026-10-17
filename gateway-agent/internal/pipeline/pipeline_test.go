@@ -522,3 +522,29 @@ func TestHTTPTraefikFollowsPagination(t *testing.T) {
 		t.Fatalf("got %v, %v", got, err)
 	}
 }
+
+// Real Traefik answers the last page with X-Next-Page naming page 1 again. Following that looped
+// between the pages until the converge timeout, so every config of more than about a hundred
+// routers (the file provider's plus Traefik's own) was rolled back as "did not converge".
+func TestHTTPTraefikStopsAtTheLastPageWhenTheHeaderWraps(t *testing.T) {
+	var calls int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		page := r.URL.Query().Get("page")
+		if page == "1" {
+			w.Header().Set("X-Next-Page", "2")
+			fmt.Fprint(w, `[{"name":"a@file"},{"name":"api@internal"}]`)
+			return
+		}
+		w.Header().Set("X-Next-Page", "1") // the last page points back to the first
+		fmt.Fprint(w, `[{"name":"b@file"}]`)
+	}))
+	defer ts.Close()
+	got, err := HTTPTraefik{APIURL: ts.URL}.Routers(context.Background())
+	if err != nil || len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if calls != 2 {
+		t.Fatalf("asked Traefik %d times for two pages", calls)
+	}
+}

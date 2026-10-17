@@ -108,6 +108,7 @@ def test_config_rollback_reaches_both_gateways(world: World, emit: Emit) -> None
         assert code == 202, body
         wait_for_beyond(world, top_version(world), "unpinning")
         delete_all(world, f"rb{i:02d}")
+    delete_all(world, "rb-base")
     timings.sort()
     emit("bench-rollback", {
         "count": ROLLBACKS, "p50_s": round(statistics.median(timings), 3),
@@ -177,3 +178,5 @@ def test_control_plane_crash_does_not_disturb_traffic(world: World, emit: Emit, 
     # the restarted plane still knows the team and can register new ones
     assert any(t["slug"] == f"co{run}-00" for t in cp.api("GET", "/v1/teams")[1])
     assert not registrar(world).run(1, f"after{run}").failures
+    delete_all(world, f"co{run}")  # leave the lab as found: later tests count its addresses
+    delete_all(world, f"after{run}")
