@@ -1,7 +1,8 @@
 """A stand-in for the sandbox VMs: answers on every address of the sandbox pool.
 
 Run it inside the sandbox namespace. It replies with the address the request came from, which
-in the lab identifies the gateway that forwarded it, and the Host header it was asked for.
+in the lab identifies the gateway that forwarded it, the Host header it was asked for and the
+pool address it was reached on.
 """
 
 import asyncio
@@ -19,7 +20,8 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> 
     for line in head.decode("latin-1").split("\r\n")[1:]:
         if line.lower().startswith("host:"):
             host = line.split(":", 1)[1].strip()
-    body = f"sandbox ok via={peer} host={host}\n".encode()
+    to = writer.get_extra_info("sockname")[0]
+    body = f"sandbox ok via={peer} host={host} to={to}\n".encode()
     writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n"
                  + f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
     try:

@@ -114,7 +114,7 @@ class World:
         return str(wait_for(one, "exactly one MASTER", timeout, 0.05))
 
 
-def boot(workdir: Path, dsn: str) -> World:
+def boot(workdir: Path, dsn: str, env: dict[str, str] | None = None) -> World:
     plat = render.platform()
     lab = netns.Lab(workdir)
     lab.setup()
@@ -123,7 +123,7 @@ def boot(workdir: Path, dsn: str) -> World:
     lab.bridge("mgmt", f"{MGMT_CLIENT}/{plat['network']['mgmt_cidr'].split('/')[1]}")
 
     seed, public = signing_key()
-    cp = ControlPlane(lab, plat, dsn, seed)
+    cp = ControlPlane(lab, plat, dsn, seed, env)
     gws = {n: Gateway(lab, plat, n, cp_url=cp.url, signing_public=public) for n in ("gw-a", "gw-b")}
     backend = Backend(lab, plat)
     backend.start()

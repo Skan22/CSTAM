@@ -54,6 +54,9 @@ certificatesResolvers:
 {% endif %}
 
 providers:
+  # Traefik applies at most one provider change per this long (default 2s), which would stretch
+  # every config version, and so every registration, by about that much.
+  providersThrottleDuration: {{ traefik_providers_throttle }}
   file:
     # ipo-agent atomically replaces this file with each verified config version.
     filename: {{ traefik_live_config }}

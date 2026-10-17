@@ -12,9 +12,11 @@ from ipo.adapters.openstack.base import TAG, CloudError, Port, QuotaExceeded, Se
 
 class FakeCloud:
     def __init__(
-        self, *, max_servers: int | None = None, clock: Callable[[], float] = time.time
+        self, *, max_servers: int | None = None, clock: Callable[[], float] = time.time,
+        boot_seconds: float = 0.0,
     ) -> None:
         self.clock = clock
+        self.boot_seconds = boot_seconds  # how long creating a server takes, as Nova's boot does
         self._lock = threading.RLock()
         self._ids = itertools.count(1)
         self.ports: dict[str, Port] = {}
@@ -60,7 +62,9 @@ class FakeCloud:
                             tags=tuple(tags), metadata=dict(metadata or {}),
                             created_at=self.clock())
             self.servers[server.id] = server
-            return server
+        if self.boot_seconds:
+            time.sleep(self.boot_seconds)  # outside the lock: boots overlap, like Nova's
+        return server
 
     def set_server_metadata(self, server_id: str, metadata: Mapping[str, str]) -> None:
         with self._lock:

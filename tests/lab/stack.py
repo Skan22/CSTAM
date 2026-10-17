@@ -308,8 +308,10 @@ class Gateway:
 class ControlPlane:
     """The real control plane with a fake cloud, pushing to the real agents."""
 
-    def __init__(self, lab: netns.Lab, plat: dict[str, Any], dsn: str, seed: str) -> None:
+    def __init__(self, lab: netns.Lab, plat: dict[str, Any], dsn: str, seed: str,
+                 env: dict[str, str] | None = None) -> None:
         self.lab, self.dsn, self.seed = lab, dsn, seed
+        self.extra_env = env or {}
         self.url = f"http://{MGMT_CLIENT}:8000"
         self.token = ""
         self.plat = plat
@@ -323,6 +325,7 @@ class ControlPlane:
             "IPO_BIND": f"{MGMT_CLIENT}:8000", "IPO_VIP": self.plat["network"]["vip"],
             "IPO_AGENTS": ",".join(f"{g}=http://{self.plat['network']['hosts'][g]['mgmt']}:8443"
                                    for g in ("gw-a", "gw-b")),
+            **self.extra_env,
         }
         self.proc = self.lab.spawn(None, [str(py), "-m", "ipo.main"], self.lab.workdir / "cp.log", env)
         wait_for(lambda: http_json("GET", f"{self.url}/healthz")[0] == 200, "control plane", 60, 0.3)

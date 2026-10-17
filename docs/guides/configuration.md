@@ -57,7 +57,7 @@ internet, TCP from the internet to anything but the gateways, ports outside the 
 | `IPO_AGENT_CERT`, `IPO_AGENT_KEY`, `IPO_AGENT_CA` | mTLS material for talking to agents |
 | `IPO_VIP` | the VIP, for the registration probe |
 | `IPO_GRAFANA_URL` | Grafana to embed: an `http(s)` URL, or a path such as `/grafana` when one front serves both |
-| `IPO_WORKERS` | saga worker threads (default 2) |
+| `IPO_WORKERS` | saga worker threads (default 8) |
 | `IPO_BIND` | `host:port` for the API (default `0.0.0.0:8000`) |
 | `IPO_MIGRATE` | `1` to run migrations at start |
 | `IPO_ADMIN_EMAIL`, `IPO_ADMIN_PASSWORD` | create or reset this admin at start |

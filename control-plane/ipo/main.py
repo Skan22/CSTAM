@@ -9,6 +9,7 @@ Configuration comes from the environment:
     IPO_PLATFORM       path to platform.yaml (required)
     IPO_JWT_SECRET     at least 32 bytes (required)
     IPO_CLOUD          `openstack` (default) or `fake`
+    IPO_FAKE_BOOT_SECONDS  with `fake`: how long each server takes to boot (default 0)
     IPO_SIGNING_KEY    base64 Ed25519 seed; generated (and warned about) if unset
     IPO_AGENTS         gw-a=https://10.0.0.11:8443,gw-b=https://10.0.0.12:8443
                        (with IPO_CLOUD=fake and no IPO_AGENTS, in-process agent doubles are used)
@@ -16,7 +17,7 @@ Configuration comes from the environment:
     IPO_VIP            the gateway VIP, for the registration probe
     IPO_GRAFANA_URL    Grafana the dashboard may embed: an http(s) URL, or a path such as /grafana
                        when the same front serves both (optional)
-    IPO_WORKERS        saga worker threads (default 2)
+    IPO_WORKERS        saga worker threads (default 8)
     IPO_BIND           host:port for the API (default 0.0.0.0:8000)
     IPO_MIGRATE        `1` to run migrations at start
     IPO_ADMIN_EMAIL / IPO_ADMIN_PASSWORD   creates or resets this admin at start
@@ -140,7 +141,7 @@ def build_runtime(
     fake = env.get("IPO_CLOUD") == "fake"
     if cloud is None:
         if fake:
-            cloud = FakeCloud()
+            cloud = FakeCloud(boot_seconds=float(env.get("IPO_FAKE_BOOT_SECONDS", "0")))
         else:
             from ipo.adapters.openstack.sdk import OpenStackCloud
             cloud = OpenStackCloud.from_env(env, base)
@@ -177,7 +178,7 @@ def build_runtime(
     def thread(name: str, target: Callable[[], object]) -> None:
         rt.threads.append(threading.Thread(target=target, name=name, daemon=True))
 
-    for i in range(int(env.get("IPO_WORKERS", "2"))):
+    for i in range(int(env.get("IPO_WORKERS", "8"))):
         runner = build_runner(connect, deps, worker_id=f"{socket.gethostname()}-{os.getpid()}-{i}")
         thread(f"worker-{i}", partial(run_worker, runner, stop))
     thread("pool", lambda: run_leader(
