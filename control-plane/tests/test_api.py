@@ -249,7 +249,7 @@ def test_a_registered_team_becomes_active_and_shows_its_saga(api: Api) -> None:
     team = api.client.get(f"/v1/teams/{created['team_id']}", headers=api.h("viewer")).json()
     job = api.client.get(f"/v1/jobs/{created['job_id']}", headers=api.h("viewer")).json()
     assert team["state"] == "active" and job["state"] == "succeeded"
-    assert [s["step"] for s in job["steps"]][0] == "claim" and len(job["steps"]) == 7
+    assert [s["step"] for s in job["steps"]][0] == "claim" and len(job["steps"]) == 8
 
 
 def test_delete_starts_a_teardown_and_is_idempotent(api: Api) -> None:

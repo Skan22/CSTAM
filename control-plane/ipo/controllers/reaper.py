@@ -1,4 +1,7 @@
-"""Reaper: every 10 s, queue teardown for expired leases and free quarantined addresses."""
+"""Reaper: every 2 s, queue teardown for expired leases and free quarantined addresses.
+
+Both are one indexed query, so a short interval is cheap, and it bounds how long an expired
+sandbox stays reachable and how long a released address waits to be reused."""
 
 import logging
 import threading
@@ -21,7 +24,7 @@ class ReaperReport:
 
 
 class Reaper:
-    def __init__(self, connect: Callable[[], psycopg.Connection], *, interval: float = 10.0):
+    def __init__(self, connect: Callable[[], psycopg.Connection], *, interval: float = 2.0):
         self.connect = connect
         self.interval = interval
 

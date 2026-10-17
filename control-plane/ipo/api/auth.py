@@ -86,7 +86,17 @@ def _token(request: Request, credentials: HTTPAuthorizationCredentials | None,
         token = request.query_params.get("access_token")
     if not token:
         raise _unauthorized("missing bearer token")
-    who = decode(request.app.state.deps.jwt_secret, token)
+    deps = request.app.state.deps
+    who = decode(deps.jwt_secret, token)
+    if who.role == TEAM:
+        # A token outlives its account: refuse it once the team is gone or its login removed.
+        with deps.connect() as conn:
+            alive = conn.execute(
+                "SELECT 1 FROM users u JOIN teams t ON t.id = u.team_id"
+                " WHERE u.email = %s AND u.team_id = %s AND t.state <> 'deleted'",
+                (who.username, who.team_id)).fetchone()
+        if not alive:
+            raise _unauthorized("this account no longer exists")
     request.state.principal = who
     return who
 

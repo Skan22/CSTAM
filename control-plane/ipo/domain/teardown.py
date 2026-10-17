@@ -84,24 +84,63 @@ def release_team(
     conn: psycopg.Connection, cloud: Cloud, team_id: str, ip: str | None, *,
     quarantine_seconds: float,
 ) -> None:
-    """Steps 3-4: delete the VM then the port, and quarantine the address. Does nothing if the
-    address has meanwhile been released, or moved on to another team."""
+    """Delete the VM then the port, quarantine the address, and check nothing was left. Does
+    nothing if the address has meanwhile moved on to another team or back to the pool. Repeating
+    it after a partial release (the lease already quarantined) deletes whatever is left."""
     if ip is None:
         return
     lease = leases.get(conn, ip)
     if lease.team_id is not None and lease.team_id != team_id:
         return
-    release_resources(conn, cloud, ip, quarantine_seconds=quarantine_seconds)
+    if lease.state in ("free", "pooled"):
+        return  # nothing of ours; a pooled lease is the warm pool's now
+    if lease.state == "quarantined":
+        _delete_resources(cloud, ip, lease)
+    else:
+        release_resources(conn, cloud, ip, quarantine_seconds=quarantine_seconds)
+    verify_released(conn, cloud, ip)
+
+
+class NotSanitized(Exception):
+    """An address was released but something of its old tenant is still around."""
+
+
+def verify_released(conn: psycopg.Connection, cloud: Cloud, ip: str) -> None:
+    """After a release: no VM or port is left on `ip`, and its lease carries nothing of the old
+    team. Raising makes the saga step retry, so an address is never recycled half-cleaned."""
+    leftovers = [f"server {s.id}" for s in cloud.list_servers() if s.name == server_name(ip)]
+    leftovers += [f"port {p.id}" for p in cloud.list_ports()
+                  if p.ip == ip or p.name == port_name(ip)]
+    lease = leases.get(conn, ip)
+    if lease.state not in ("quarantined", "free"):
+        leftovers.append(f"lease {lease.state}")
+    if lease.team_id or lease.server_id or lease.port_id:
+        leftovers.append("lease still linked to its old team or VM")
+    if leftovers:
+        raise NotSanitized(f"{ip} was released but still has: {', '.join(leftovers)}")
+
+
+def purge_team_data(conn: psycopg.Connection, team_id: str, host: str) -> dict[str, int]:
+    """Remove what a deleted team could still be identified or reached by: its logins, its route
+    (already gone after drain, but cheap to be sure) and the traffic recorded for its host. The
+    team row itself and the audit trail stay: the name is never reused, and the trail is a
+    hash chain that must not lose links."""
+    users = conn.execute("DELETE FROM users WHERE team_id = %s", (team_id,)).rowcount
+    routes = conn.execute("DELETE FROM routes WHERE team_id = %s", (team_id,)).rowcount
+    buckets = conn.execute("DELETE FROM traffic_buckets WHERE host = %s", (host,)).rowcount
+    recent = conn.execute("DELETE FROM traffic_recent WHERE host = %s", (host,)).rowcount
+    return {"users": users, "routes": routes, "traffic_buckets": buckets, "traffic_recent": recent}
 
 
 def finalize_team(conn: psycopg.Connection, team_id: str, *, actor: str = "teardown") -> None:
-    """Step 5: the team is gone; record it and tell the dashboard."""
+    """The last step: the team is gone. Purge what identified it, record it, tell the dashboard."""
     with conn.transaction():
         row = conn.execute(
             "UPDATE teams SET state = 'deleted' WHERE id = %s AND state <> 'deleted'"
-            " RETURNING slug", (team_id,)).fetchone()
+            " RETURNING slug, subdomain", (team_id,)).fetchone()
         if row:
-            audit(conn, actor, "team.deleted", row[0])
+            purged = purge_team_data(conn, team_id, row[1])
+            audit(conn, actor, "team.deleted", row[0], purged=purged)
             events.emit(conn, "team.deleted", team_id=team_id, slug=row[0])
 
 
@@ -113,6 +152,11 @@ def release_resources(
         return lease
     if lease.state != "draining":
         lease = leases.begin_drain(conn, ip)
+    _delete_resources(cloud, ip, lease)
+    return leases.quarantine(conn, ip, seconds=quarantine_seconds)
+
+
+def _delete_resources(cloud: Cloud, ip: str, lease: leases.Lease) -> None:
     # Delete by recorded id and by deterministic name: a crash between creating a resource and
     # recording it must not leave an orphan behind.
     for server in cloud.list_servers():
@@ -121,4 +165,3 @@ def release_resources(
     for port in cloud.list_ports():
         if port.id == lease.port_id or port.name == port_name(ip):
             cloud.delete_port(port.id)
-    return leases.quarantine(conn, ip, seconds=quarantine_seconds)

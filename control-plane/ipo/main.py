@@ -15,6 +15,9 @@ Configuration comes from the environment:
                        (with IPO_CLOUD=fake and no IPO_AGENTS, in-process agent doubles are used)
     IPO_AGENT_CERT / IPO_AGENT_KEY / IPO_AGENT_CA   mTLS material for the agents
     IPO_VIP            the gateway VIP, for the registration probe
+    IPO_DNS            `wildcard` (default: *.<domain> is set once) or `rfc2136` (per-team records;
+                       needs IPO_DNS_SERVER, IPO_DNS_TARGET; optional IPO_DNS_ZONE, IPO_DNS_TTL,
+                       IPO_DNS_TSIG_NAME / _SECRET / _ALGORITHM)
     IPO_GRAFANA_URL    Grafana the dashboard may embed: an http(s) URL, or a path such as /grafana
                        when the same front serves both (optional)
     IPO_WORKERS        saga worker threads (default 8)
@@ -40,6 +43,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from ipo import runtime_settings
+from ipo.adapters import dns as dnsmod
 from ipo.adapters.local_agent import LocalAgent
 from ipo.adapters.openstack.base import Cloud
 from ipo.adapters.openstack.fake import FakeCloud
@@ -111,7 +115,7 @@ def _agents(env: Mapping[str, str]) -> dict[str, Agent]:
 def build_runtime(
     env: Mapping[str, str], *, cloud: Cloud | None = None,
     agents: Mapping[str, Agent] | None = None, prober: Prober | None = None,
-    signer: Signer | None = None,
+    signer: Signer | None = None, dns: dnsmod.Dns | None = None,
 ) -> Runtime:
     """Wire everything from `env`; the keyword arguments replace parts for tests."""
     dsn = env["IPO_DATABASE_URL"]
@@ -159,7 +163,9 @@ def build_runtime(
         fault()
 
     pusher = Pusher(agents, connect)
-    deps = Deps(cloud, DbGateways(base), prober, base)
+    if dns is None:
+        dns = dnsmod.from_env(env, base.domain)
+    deps = Deps(cloud, DbGateways(base), prober, base, dns)
     app = create_app(AppDeps(connect, base, jwt_secret=env["IPO_JWT_SECRET"],
                              grafana_url=grafana_url(env.get("IPO_GRAFANA_URL", "")),
                              failover=failover if agents else None))
@@ -171,7 +177,7 @@ def build_runtime(
 
     pool = PoolManager(cloud, base, connect)
     compiler = CompilerController(connect, signer, base, push=pusher.push)
-    reconciler = Reconciler(cloud, base, connect, repush=pusher.push)
+    reconciler = Reconciler(cloud, base, connect, repush=pusher.push, dns=dns)
     reaper = Reaper(connect)
     stop = rt.stop
 

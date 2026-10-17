@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import psycopg
 
+from ipo import runtime_settings
 from ipo.adapters.openstack.base import (
     TAG,
     Cloud,
@@ -93,6 +94,8 @@ class PoolManager:
                 return "ok"
             except CloudError as e:
                 release_resources(
-                    conn, self._cloud, ip, quarantine_seconds=self._settings.quarantine_seconds
+                    conn, self._cloud, ip,
+                    quarantine_seconds=runtime_settings.effective(
+                        conn, self._settings).quarantine_seconds
                 )
                 return "quota" if isinstance(e, QuotaExceeded) else "error"

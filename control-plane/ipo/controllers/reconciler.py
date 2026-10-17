@@ -14,7 +14,8 @@ from typing import Any
 
 import psycopg
 
-from ipo import metrics
+from ipo import metrics, runtime_settings
+from ipo.adapters.dns import Dns, DnsError, WildcardDns
 from ipo.adapters.openstack.base import Cloud, Port, Server
 from ipo.controllers.compiler import ConfigVersion
 from ipo.controllers.workers import run_leader
@@ -33,15 +34,16 @@ from ipo.settings import Settings
 log = logging.getLogger("ipo.reconciler")
 
 RULES = ("orphan_vm", "orphan_port", "vm_gone", "stale_route", "stuck_lease", "stuck_team",
-         "gateway_behind")
+         "gateway_behind", "stale_dns", "missing_dns")
 
 
 class Reconciler:
     def __init__(
         self, cloud: Cloud, settings: Settings, connect: Callable[[], psycopg.Connection], *,
         repush: Callable[[ConfigVersion], object] | None = None, grace_seconds: float = 30.0,
-        interval: float = 60.0, now: Callable[[], float] = time.time,
+        interval: float = 60.0, now: Callable[[], float] = time.time, dns: Dns | None = None,
     ) -> None:
+        self.dns = dns or WildcardDns()
         self.cloud = cloud
         self.settings = settings
         self.connect = connect
@@ -66,6 +68,7 @@ class Reconciler:
             self._stuck_leases(conn, state, repairs)
             self._stuck_teams(conn, repairs)
             self._gateways(conn, repairs)
+            self._dns(conn, repairs)
         for rule, n in repairs.items():
             if n:
                 metrics.RECONCILER_REPAIRS.labels(rule).inc(n)
@@ -136,7 +139,8 @@ class Reconciler:
         for ip, (st, _team, _srv, age) in state.items():
             if st == "draining" and age >= self.grace:
                 release_resources(conn, self.cloud, ip,
-                                  quarantine_seconds=self.settings.quarantine_seconds)
+                                  quarantine_seconds=runtime_settings.effective(
+                                      conn, self.settings).quarantine_seconds)
                 repairs["stuck_lease"] += 1
         freed = leases.release_expired_quarantine(conn)
         repairs["stuck_lease"] += len(freed)
@@ -155,7 +159,8 @@ class Reconciler:
             drain_team(conn, team_id)
             if ip:
                 release_resources(conn, self.cloud, ip,
-                                  quarantine_seconds=self.settings.quarantine_seconds)
+                                  quarantine_seconds=runtime_settings.effective(
+                                      conn, self.settings).quarantine_seconds)
             finalize_team(conn, team_id, actor="reconciler")
             conn.execute(
                 "UPDATE jobs SET state = 'succeeded', locked_by = NULL,"
@@ -163,6 +168,26 @@ class Reconciler:
                 " WHERE kind = 'teardown' AND team_id = %s AND state IN ('queued', 'running')",
                 (team_id,))
             repairs["stuck_team"] += 1
+
+    def _dns(self, conn: psycopg.Connection, repairs: Counter[str]) -> None:
+        """Per-team DNS records must exist exactly while the team does. Only needed when the
+        zone has such records (the wildcard default has none)."""
+        if not self.dns.managed:
+            return
+        rows = conn.execute(
+            "SELECT subdomain, state FROM teams WHERE state IN ('active', 'deleted', 'failed')"
+            " AND created_at > now() - interval '2 days'").fetchall()
+        for host, st in rows:
+            try:
+                present = self.dns.exists(host)
+                if st == "active" and not present:
+                    self.dns.ensure(host)
+                    repairs["missing_dns"] += 1
+                elif st != "active" and present:
+                    self.dns.remove(host)
+                    repairs["stale_dns"] += 1
+            except DnsError as exc:
+                log.warning("dns check of %s failed: %s", host, exc)
 
     def _gateways(self, conn: psycopg.Connection, repairs: Counter[str]) -> None:
         if self.repush is None:

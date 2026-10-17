@@ -17,6 +17,7 @@ dependencies = [
   "argon2-cffi>=25.1.0",
   "pyjwt>=2.15.1",
   "openstacksdk>=4.20.0",
+  "dnspython>=2.9.0",
 ]
 
 [dependency-groups]

@@ -3,6 +3,7 @@ from collections.abc import Callable
 import psycopg
 import pytest
 
+from ipo.adapters.dns import Dns, FakeDns, WildcardDns
 from ipo.adapters.openstack.fake import FakeCloud
 from ipo.controllers.pool import PoolManager
 from ipo.controllers.reaper import Reaper
@@ -18,18 +19,19 @@ from tests.helpers import FakeGateways, FakeProber, make_env
 Env = tuple[Settings, FakeCloud, Callable[[], psycopg.Connection]]
 
 
-def runner(env: Env, gw: FakeGateways, **kw: object) -> SagaRunner:
+def runner(env: Env, gw: FakeGateways, dns: Dns | None = None, **kw: object) -> SagaRunner:
     settings, cloud, connect = env
-    return build_runner(connect, Deps(cloud, gw, FakeProber(), settings), worker_id="w",
-                        sleep=lambda s: None, **kw)  # type: ignore[arg-type]
+    return build_runner(connect, Deps(cloud, gw, FakeProber(), settings, dns or WildcardDns()),
+                        worker_id="w", sleep=lambda s: None, **kw)  # type: ignore[arg-type]
 
 
-def register_active(env: Env, gw: FakeGateways, slug: str = "alpha") -> tuple[str, str, str]:
+def register_active(env: Env, gw: FakeGateways, slug: str = "alpha",
+                    dns: Dns | None = None) -> tuple[str, str, str]:
     """Register a team and run its saga; returns (team_id, ip, host)."""
     settings, _, connect = env
     with connect() as c:
         reg = register_team(c, settings, slug=slug, owner="ada", idempotency_key=f"k-{slug}")
-    assert runner(env, gw).run_once() == "succeeded"
+    assert runner(env, gw, dns).run_once() == "succeeded"
     return reg.team_id, reg.ip, reg.subdomain
 
 
@@ -149,15 +151,15 @@ def test_reaper_frees_quarantined_addresses_once_the_window_passes(dsn: str) -> 
 # ----------------------------------------------------------- exit criteria
 def test_100_create_and_delete_cycles_leave_nothing_behind(dsn: str) -> None:
     settings, cloud, connect = env = make_env(dsn, quarantine_seconds=0)
-    gw = FakeGateways()
+    gw, dns = FakeGateways(), FakeDns()
     pool = PoolManager(cloud, settings, connect)
     reaper = Reaper(connect)
     pool.reconcile(target=2)
     for i in range(100):
-        team_id, _, _ = register_active(env, gw, f"team-{i}")
+        team_id, _, _ = register_active(env, gw, f"team-{i}", dns)
         with connect() as c:
             enqueue_teardown(c, team_id, reason="api", actor="loop")
-        assert runner(env, gw).run_once() == "succeeded"
+        assert runner(env, gw, dns).run_once() == "succeeded"
         reaper.run_once()
         pool.reconcile(target=2)
     with connect() as c:
@@ -166,12 +168,16 @@ def test_100_create_and_delete_cycles_leave_nothing_behind(dsn: str) -> None:
         assert c.execute("SELECT count(*) FROM teams WHERE state <> 'deleted'").fetchone() == (0,)
         assert counts.get("leased", 0) == counts.get("draining", 0) == 0
         assert counts.get("quarantined", 0) == 0
+        assert c.execute("SELECT count(*) FROM leases WHERE state = 'free' AND (team_id IS NOT NULL"
+                         " OR server_id IS NOT NULL OR port_id IS NOT NULL)").fetchone() == (0,)
+    assert dns.records == {}
     pooled = counts["pooled"]
     assert len(cloud.servers) == len(cloud.ports) == pooled == 2  # only the warm pool remains
 
 
-TEARDOWN_BOUNDARIES = [f"{w}:{s}" for s in ("drain", "await_route_removal", "release", "finalize")
-                       for w in ("before", "after")]
+TEARDOWN_BOUNDARIES = [
+    f"{w}:{s}" for s in ("drain", "await_route_removal", "unpublish_dns", "release", "finalize")
+    for w in ("before", "after")]
 
 
 @pytest.mark.parametrize("at", TEARDOWN_BOUNDARIES)
@@ -180,8 +186,8 @@ def test_worker_killed_mid_teardown_is_finished_by_the_reconciler(dsn: str, at: 
 
     env = make_env(dsn)
     settings, cloud, connect = env
-    gw = FakeGateways()
-    team_id, ip, host = register_active(env, gw)
+    gw, dns = FakeGateways(), FakeDns()
+    team_id, ip, host = register_active(env, gw, dns=dns)
     with connect() as c:
         enqueue_teardown(c, team_id, reason="api", actor="ada")
     when, step = at.split(":")
@@ -191,14 +197,14 @@ def test_worker_killed_mid_teardown_is_finished_by_the_reconciler(dsn: str, at: 
             raise WorkerCrash(at)
 
     with pytest.raises(WorkerCrash):
-        runner(env, gw, hook=crash).run_once()
-    Reconciler(cloud, settings, connect, grace_seconds=0).run_once()
+        runner(env, gw, dns, hook=crash).run_once()
+    Reconciler(cloud, settings, connect, grace_seconds=0, dns=dns).run_once()
     with connect() as c:
         assert c.execute("SELECT state FROM teams").fetchone() == ("deleted",)
         assert leases.get(c, ip).state in ("quarantined", "free")
         assert c.execute("SELECT count(*) FROM routes").fetchone() == (0,)
     assert not cloud.servers and not cloud.ports
+    assert host not in dns.records  # one reconciler pass withdrew the name as well
     # a late-resuming worker finds nothing left to do and changes nothing
-    runner(env, gw).run_once()
+    runner(env, gw, dns).run_once()
     assert state(env)["servers"] == 0
-    del host

@@ -3,6 +3,7 @@ from collections.abc import Callable
 import psycopg
 import pytest
 
+from ipo.adapters.dns import FakeDns
 from ipo.adapters.openstack.base import CloudError
 from ipo.adapters.openstack.fake import FakeCloud
 from ipo.controllers.register_saga import STEP_NAMES, Deps, build_runner
@@ -14,10 +15,12 @@ from tests.helpers import FakeGateways, FakeProber, make_env
 
 Env = tuple[Settings, FakeCloud, Callable[[], psycopg.Connection]]
 RUNNABLE = [s for s in STEP_NAMES if s != "claim"]
+DNS = FakeDns()  # reset by setup(); a zone with per-team records, so the dns step has work to do
 
 
 def setup(dsn: str, *, warm: bool) -> tuple[Env, Registration, FakeGateways, FakeProber]:
     settings, cloud, connect = make_env(dsn, pooled=2 if warm else 0)
+    DNS.reset()
     with connect() as c:
         reg = register_team(c, settings, slug="alpha", owner="ada", idempotency_key="k1")
     return (settings, cloud, connect), reg, FakeGateways(), FakeProber()
@@ -25,8 +28,8 @@ def setup(dsn: str, *, warm: bool) -> tuple[Env, Registration, FakeGateways, Fak
 
 def runner(env: Env, gw: FakeGateways, pr: FakeProber, **kw: object) -> SagaRunner:
     settings, cloud, connect = env
-    return build_runner(connect, Deps(cloud, gw, pr, settings), worker_id="w", sleep=lambda s: None,
-                        **kw)  # type: ignore[arg-type]
+    return build_runner(connect, Deps(cloud, gw, pr, settings, DNS), worker_id="w",
+                        sleep=lambda s: None, **kw)  # type: ignore[arg-type]
 
 
 def snapshot(env: Env) -> dict[str, object]:
@@ -51,6 +54,7 @@ def test_happy_path_ends_with_a_live_team(dsn: str, warm: bool) -> None:
     assert snap["team"] == ("active",) and snap["job"] == ("succeeded",)
     assert snap["routes"] == (1,) and snap["team_tags"] == 1
     assert gw.waited == [reg.subdomain] and pr.probed == [reg.subdomain]
+    assert list(DNS.records) == [reg.subdomain]
     _, _, connect = env
     with connect() as c:
         steps = c.execute("SELECT step, status FROM saga_steps").fetchall()
@@ -82,6 +86,8 @@ def _break(step: str, env: Env, gw: FakeGateways, pr: FakeProber) -> None:
         cloud.inject("set_server_metadata", err, times=99)
     elif step == "route":
         env[2]().execute("ALTER TABLE routes ADD CONSTRAINT nope CHECK (false) NOT VALID")
+    elif step == "dns":
+        DNS.inject("ensure", err, times=99)
     elif step == "converge":
         gw.fail = err
     elif step == "probe":
@@ -102,6 +108,7 @@ def test_permanent_failure_at_any_step_undoes_everything(dsn: str, warm: bool, s
     snap = snapshot(env)
     assert snap["team"] == ("failed",) and snap["job"] == ("compensated",)
     assert snap["routes"] == (0,) and snap["team_tags"] == 0
+    assert DNS.records == {}  # whatever was published is withdrawn
     counts = snap["leases"]
     assert isinstance(counts, dict) and counts.get("leased", 0) == 0
     if warm:

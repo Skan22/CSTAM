@@ -2,6 +2,7 @@
 Traefik and ipo-agent, a sandbox backend, and the real control plane with a fake cloud."""
 
 import asyncio
+import subprocess
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from lab.loadgen import LoadGen, Report
 from lab.stack import (
     EDGE_CLIENT,
     MGMT_CLIENT,
+    REPO,
     Backend,
     ControlPlane,
     Gateway,
@@ -21,6 +23,8 @@ from lab.stack import (
 )
 
 SLUG = "chaos"
+DNS_PORT = 5353
+DNS_KEY = ("ipo-lab-key", "bGFiLXRzaWctc2VjcmV0LWxhYi10c2lnLXNlY3JldC0wMQ==")
 
 
 @dataclass
@@ -33,6 +37,7 @@ class World:
     host: str
     timeline: list[tuple[float, str, str]] = field(default_factory=list)
     t0: float = field(default_factory=time.monotonic)
+    dnsd: subprocess.Popen[bytes] | None = None
 
     @property
     def vip(self) -> str:
@@ -101,9 +106,24 @@ class World:
                     and "sandbox ok" in self.curl(1))
         wait_for(settled, "a clean master and backup", timeout, 0.2)
 
+    def dns_has(self, host: str) -> bool:
+        """Whether the lab's authoritative server answers an A query for `host`."""
+        import dns.exception
+        import dns.message
+        import dns.query
+        import dns.rcode
+        q = dns.message.make_query(host, "A")
+        try:
+            r = dns.query.udp(q, MGMT_CLIENT, port=DNS_PORT, timeout=2)
+        except dns.exception.DNSException:
+            return False
+        return r.rcode() == dns.rcode.NOERROR and bool(r.answer)
+
     def shutdown(self) -> None:
         for g in self.gateways.values():
             g.kill_all()
+        if self.dnsd:
+            self.dnsd.kill()
         self.cp.stop()
         self.backend.proc.kill()
 
@@ -114,13 +134,25 @@ class World:
         return str(wait_for(one, "exactly one MASTER", timeout, 0.05))
 
 
-def boot(workdir: Path, dsn: str, env: dict[str, str] | None = None) -> World:
+def boot(workdir: Path, dsn: str, env: dict[str, str] | None = None, *,
+         dns: bool = False) -> World:
+    """`dns=True` also runs an authoritative server that takes signed RFC 2136 updates and points
+    the control plane at it, so per-team DNS records are published and withdrawn for real."""
     plat = render.platform()
     lab = netns.Lab(workdir)
     lab.setup()
     lab.bridge("edge", f"{EDGE_CLIENT}/{plat['network']['edge_cidr'].split('/')[1]}")
     lab.bridge("sbx")
     lab.bridge("mgmt", f"{MGMT_CLIENT}/{plat['network']['mgmt_cidr'].split('/')[1]}")
+    dnsd = None
+    if dns:
+        py = REPO / "control-plane" / ".venv" / "bin" / "python"
+        dnsd = lab.spawn(None, [str(py), str(REPO / "control-plane" / "tests" / "dnsd.py"),
+                                "--listen", f"{MGMT_CLIENT}:{DNS_PORT}", "--zone", plat["domain"],
+                                "--tsig", f"{DNS_KEY[0]}={DNS_KEY[1]}"], lab.workdir / "dnsd.log")
+        env = {**(env or {}), "IPO_DNS": "rfc2136", "IPO_DNS_SERVER": f"{MGMT_CLIENT}:{DNS_PORT}",
+               "IPO_DNS_TARGET": str(plat["network"]["vip"]), "IPO_DNS_TSIG_NAME": DNS_KEY[0],
+               "IPO_DNS_TSIG_SECRET": DNS_KEY[1]}
 
     seed, public = signing_key()
     cp = ControlPlane(lab, plat, dsn, seed, env)
@@ -133,7 +165,7 @@ def boot(workdir: Path, dsn: str, env: dict[str, str] | None = None) -> World:
     cp.start()
     for g in gws.values():
         g.start()
-    world = World(lab, plat, gws, cp, backend, f"{SLUG}.{plat['domain']}")
+    world = World(lab, plat, gws, cp, backend, f"{SLUG}.{plat['domain']}", dnsd=dnsd)
     world.wait_one_master()
     cp.register(SLUG)
     cp.wait_active(SLUG)
