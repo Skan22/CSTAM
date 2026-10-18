@@ -46,12 +46,15 @@ threat and together for all of it:
 | **Neutron port security** | the cloud fabric, per port | a sandbox sending with another's IP or MAC, an unused pool address or a gateway's address: dropped. This is the only thing between sandboxes at layer 2 and must stay on; the Pulumi policy pack refuses a port or network without it |
 | **nftables on every host** | each platform host, rendered from the same spec by the `hardening` role | destination-pinned rules close the one leak the fabric alone has (a sandbox routing mgmt-net through the relay's sandbox address, delivering one-way UDP); per-source rate limits on shared telemetry; forged VRRP adverts dropped |
 
-nftables is the iptables successor and is what the hosts run; eBPF was not used. The fabric rules
+nftables is the iptables successor and is what the hosts run; eBPF was not used. **Egress** is
+the other direction: sandboxes have no route out at all, and the platform hosts, on FelCloud whose
+routers do not SNAT, reach package mirrors and image registries only through the bastion's proxy,
+which refuses every hostname not on its allow-list (`bastion_proxy_allow`). The fabric rules
 and the host rules are generated from the same file, so they cannot drift apart, and the suite
 checks each layer alone. A sandbox's own firewall is never counted on: teams own their images.
 
-**Evidence.** `tests/isolation` probes 1,683 address-and-port pairs across every machine in the
-topology, of which the policy opens 105 (the positive controls), and checks verdicts from both
+**Evidence.** `tests/isolation` probes 1,782 address-and-port pairs across every machine in the
+topology, of which the policy opens 112 (the positive controls), and checks verdicts from both
 the probing and the listening end ([results](../reports/isolation.md)): sandbox to sandbox on any
 port, sandbox to a gateway's management address or the agent port, sandbox to anything on mgmt-net
 (API, Postgres, Grafana, SSH), forged source IP/MAC, rerouting, forged VRRP and flooding. The same
@@ -83,7 +86,7 @@ E elevation of privilege. Each row is a threat, the control, and the test that w
 | T | A request rewrites the routing table | the table is a file only the agent writes; Traefik's API listens on loopback | deploy tests (unit hardening) |
 | R | Who requested what | JSON access log per request (no headers; the agent forwards only host, method, path without query, status, duration, never the client address) | `test_traffic`, chaos traffic tests |
 | I | Team A reads team B's traffic | team logins see only their own host (`/v1/me*`) | `test_team_access` walks the OpenAPI document, so a route added later is covered |
-| D | One team floods the gateway | single shared capacity today; per-source limits protect only the shared telemetry ports | throughput measured in the [benchmarks](../reports/benchmarks.md); per-team limits are a [known gap](#known-gaps) |
+| D | One team floods the gateway | **a rate limit on every team's route, keyed by its Host** (200 requests/s, burst 100): a flooding team gets 429s, its neighbours do not notice; per-source limits on the shared telemetry ports | `tests/load/test_ratelimit.py` (a team at 1,200/s refused, its neighbour all 200s) |
 | E | Traefik compromise | rootless Quadlet, no capabilities, read-only root, `NoNewPrivileges` | deploy tests (`systemd-analyze security` ≤ 2.0) |
 
 ### Gateway agent (`ipo-agent`)
@@ -107,6 +110,7 @@ E elevation of privilege. Each row is a threat, the control, and the test that w
 | I | Account enumeration; data of other teams | one error and the same timing for unknown accounts and wrong passwords (argon2id with a dummy verify); team routes scoped by `team_id` | `test_bad_credentials_are_indistinguishable`, `test_team_access` |
 | D | Registration flood exhausts addresses or the quota | `reserve_free_ips` guard answers 429 before the pool is empty; idempotency stops retry storms creating duplicates; the instance quota backs the warm pool off exponentially | `test_ipam_concurrency`, `test_concurrent_registration` |
 | E | Team or viewer escalates | `team` is outside the role ladder and refused on every staff route; deny-by-default test walks every path | `test_every_route_rejects_requests_without_a_valid_token`, `test_team_access` |
+| E | A compromised gateway uses its login | agents log in as role `gateway`, bound to one gateway: admitted to that gateway's heartbeat and traffic report and the config pull only; a removed account's tokens stop at once | `test_gateway_accounts` (walks every route) |
 
 ### Database (PostgreSQL)
 
@@ -166,7 +170,7 @@ leases.
 | --- | --- | --- |
 | Operators, viewers, admins | email and password (argon2id) → 15-minute JWT | the role ladder in the [API guide](../api/integration.md#authentication) |
 | Team accounts | the same, issued by an admin per team | their team's traffic and events only |
-| Gateway agents | an operator account each, plus their host certificate toward the control plane | heartbeats, traffic reports, config pull |
+| Gateway agents | a **`gateway` account each, bound to its gateway**, plus the host certificate | its own gateway's heartbeat and traffic report, and the config pull; refused everywhere else, and refused for the other gateway |
 | Control plane → agents | mutual TLS (client certificate CN `ipo-control-plane`) and the config signature | config push; `POST /fault` needs the admin CN |
 | Operators → platform hosts | WireGuard to the bastion, then SSH | everything, audited by SSH logs |
 
@@ -202,16 +206,14 @@ manager backs off on quota errors. All settings change at runtime and every chan
 
 ## Known gaps
 
-- **Agents use an `operator` account.** A compromised gateway can therefore call every operator
-  route. A narrower `gateway` role limited to heartbeat, traffic and config pull would shrink that.
-- **No per-team rate limit at the gateway.** One team can use the gateway's shared capacity.
-  Traefik's rate-limit middleware per router is the natural next step.
+- **The per-team rate limit is one size for all** (200 requests/s, burst 100, keyed by Host). A
+  team that legitimately needs more needs a per-team setting, which does not exist yet.
 - **TLS to teams is optional.** The gateway supports ACME (`traefik_acme_email`), but the default
   deployment serves plain HTTP on 80 and the team subdomains need a wildcard certificate to
   serve 443 without per-host issuance.
 - **`/metrics` is unauthenticated** on the control plane; it is reachable only on mgmt-net.
-- **Not yet run on real hosts:** the host firewall rules (verified in the lab against the real
-  rendered files) and the Ansible roles. The Neutron half is verified on the real cloud.
+- **Egress is allow-listed by hostname** at the bastion's proxy, not by content: a compromised
+  platform host can still reach Docker Hub, PyPI and the others on the list.
 - **eBPF** is not used; nftables covers the same enforcement points with far less operational
   weight.
 

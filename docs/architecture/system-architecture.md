@@ -113,17 +113,18 @@ table and key handling are in [security.md](security.md).
 
 | Verified | How |
 | --- | --- |
-| Control plane flows (registration, teardown, reconciler, roles, config pipeline) | 300+ unit and integration tests against a real PostgreSQL |
+| Control plane flows (registration, teardown, reconciler, roles, config pipeline) | 370+ unit and integration tests against a real PostgreSQL |
 | Gateway failover, config hot-reload, traffic accounting, split-brain detection | real keepalived, Traefik and `ipo-agent` in a rootless namespace lab, under load |
-| Network isolation, both enforcement layers and each alone | namespace lab with 1,683 probes per pass |
+| Network isolation, both enforcement layers and each alone | namespace lab with 1,782 probes per pass; 270 probes and forged packets against the real security groups |
 | Every Ansible template, Quadlet and observability config | read by the real program at the pinned version |
-| `pulumi up` and `destroy` | run against the real FelCloud project (86 resources, VMs ACTIVE in about 45 s) |
+| `pulumi up` and `destroy` | run against the real FelCloud project |
+| **The Ansible roles on real VMs, VRRP between two real VMs, the edge path** | the platform deployed on FelCloud and used from the internet: failover between the real gateways, teams served through the floating IP ([report](../reports/real-deployment.md)) |
 
 | **Not** verified | Why |
 | --- | --- |
-| Ansible roles on real VMs; VRRP between two real OpenStack VMs | no configured hosts yet; the floating IPs attach, but nothing answers behind them until the roles run through the bastion |
-| `podman auto-update` rollback, step-ca enrollment end to end, Postgres replication between hosts, WireGuard | no Podman runtime or second host was available |
-| Behaviour with real teams, and the instance limit under a burst | not exercised |
+| The control plane's real cloud adapter on the deployed hosts | no application credential was put on them; it is measured from a workstation instead |
+| The observability stack on real hosts, `podman auto-update` rollback, WireGuard with a real peer, promoting the replica | not run yet |
+| A compute-host failure | FelCloud honours only soft anti-affinity; the pair may share a host |
 
 ## Repository map
 

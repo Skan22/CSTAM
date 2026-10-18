@@ -16,7 +16,7 @@ sequenceDiagram
   W->>W: dns: publish the A record, only in per-team zones - the wildcard default has none
   CC->>G: signed config containing the host (both gateways)
   G-->>W: converge: both acked a version with the host
-  W->>G: probe: request the host through the VIP until it answers
+  W->>G: probe: ask the agents to request the host through their Traefik until the sandbox answers
   W->>W: activate: team ACTIVE, audit entry, event
   W-->>U: job succeeded (GET /v1/jobs/id)
   Note over W: after 3 failed attempts of a step, every started step is undone in reverse and the team is FAILED.<br/>A job whose worker died is resumed by another worker.

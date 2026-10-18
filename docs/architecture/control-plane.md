@@ -69,7 +69,7 @@ the team, claim a lease, create the job. Everything after that is a saga.
 | `route` | insert the route and `NOTIFY` the compiler | remove the route |
 | `dns` | publish `<slug>.<domain>` when the zone has per-team records (`IPO_DNS=rfc2136`); a no-op with the default wildcard | withdraw the record |
 | `converge` | wait until **both** gateways have acknowledged a version containing the host | - |
-| `probe` | request the host through the VIP until it answers | - |
+| `probe` | ask the gateway agents to request the host through their own Traefik until the sandbox answers (`POST /probe`; up to `IPO_PROBE_TIMEOUT`, 180 s, since a new VM on FelCloud serves about 90 s after it is created). The management network has no path to the VIP | - |
 | `activate` | team `ACTIVE`, audit entry, `team.active` event | - |
 
 - **Warm vs cold.** A registration claims a `pooled` lease (a running VM): the **warm** path, seconds.

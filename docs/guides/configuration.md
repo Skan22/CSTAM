@@ -63,6 +63,8 @@ internet, TCP from the internet to anything but the gateways, ports outside the 
 | `IPO_DNS` | `wildcard` (default: `*.<domain>` is set once to the floating IP, nothing per team) or `rfc2136` (one A record per team, published and withdrawn with signed dynamic updates) |
 | `IPO_DNS_SERVER`, `IPO_DNS_TARGET`, `IPO_DNS_ZONE`, `IPO_DNS_TTL` | with `rfc2136`: the server (`host[:port]`), the address every record points at (the floating IP), the zone (default: the platform domain) and the TTL (30) |
 | `IPO_DNS_TSIG_NAME`, `IPO_DNS_TSIG_SECRET`, `IPO_DNS_TSIG_ALGORITHM` | TSIG key (base64 secret, `hmac-sha256` by default); without one, updates are unsigned |
+| `IPO_PROBE` | how registration checks that a team serves: `agents` (default when `IPO_AGENTS` is set: the gateways request it through their own Traefik), `vip`, or `none` |
+| `IPO_PROBE_TIMEOUT` | how long it waits for a new sandbox to answer (default 180: a FelCloud VM serves about 90 s after it is created) |
 | `IPO_RELEASE_VERIFY_SECONDS` | how long teardown waits for the cloud to finish deleting a VM before calling it a leftover (default 40) |
 | `IPO_FAKE_BOOT_SECONDS`, `IPO_FAKE_STATE` | with `IPO_CLOUD=fake`: how long a fake server takes to boot, and a file that keeps the fake cloud across restarts (labs only) |
 | `IPO_BIND` | `host:port` for the API (default `0.0.0.0:8000`) |
@@ -106,3 +108,8 @@ read `quarantine_seconds` at the time they act.
 | Pulumi | `ipo:prefix` | name prefix when two stacks share a project |
 | Ansible | `ansible/secrets.example.yaml` | the shape of every secret; the real file is SOPS-encrypted |
 | Ansible | `ansible/inventory/group_vars/*.yml` | per-group overrides (bastion forwarding, relay rate limits, gateway ports) |
+| Ansible | `ipo_jump`, `bootstrap_ssh_from` | reach the hosts through the bastion's floating IP; keep SSH to the bastion open for one range until WireGuard is up (first run) |
+| Ansible | `ipo_egress_proxy`, `bastion_proxy_allow` | the egress proxy the hosts use (automatic: the bastion; `""` where routers SNAT) and the hostnames it lets through |
+| Ansible | `control_plane_cloud`, `control_plane_build_on_host` | `openstack` (default) or `fake`; build the control-plane image on the hosts when there is no registry |
+| Ansible | `traefik_backend_dial_timeout`, `traefik_providers_throttle` | how long Traefik tries to reach a team's VM (2 s: a booting one gives 502/504 quickly); how often it applies a new config (25 ms) |
+| Pulumi | `ipo:bootstrapSshFrom` | an address range that may SSH to the bastion before WireGuard exists (first run only) |

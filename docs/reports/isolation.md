@@ -7,8 +7,8 @@ about 90 seconds, three consecutive runs identical. The lab and its method are d
 ## What is probed
 
 Every machine (two sandboxes, both gateways, both control-plane hosts, the relay, the bastion and
-an internet host) dials every other machine on every address it has and on 17 ports (15 TCP,
-2 UDP): 1683 probes per pass, of which the policy opens 105. The open ones are positive controls:
+an internet host) dials every other machine on every address it has and on 18 ports (16 TCP,
+2 UDP): 1782 probes per pass, of which the policy opens 112. The open ones are positive controls:
 a block proves something only if the same probe connects when allowed. Verdicts come from both
 ends: a connect or a reply, and the listener's own log, so a datagram that arrives without an
 answer still counts as a leak.
@@ -17,7 +17,7 @@ answer still counts as a leak.
 
 | Check | Result |
 | --- | --- |
-| Sandbox A to sandbox B on any port | blocked: 17 probe ports and a sweep of TCP 1-2048 |
+| Sandbox A to sandbox B on any port | blocked: 18 probe ports and a sweep of TCP 1-2048 |
 | Sandbox to a gateway's management address and the agent port (8443) | blocked; only 80 and 443 on the edge addresses answer |
 | Sandbox to anything on mgmt-net (API, Postgres, Grafana, Prometheus, SSH) | blocked |
 | Sandbox sending with another sandbox's IP or MAC, an unused pool address or a gateway's address | dropped by port security; only the honest datagram arrives |
@@ -60,51 +60,47 @@ through the floating IP.
 
 ## Real FelCloud run
 
-`uv run python -m isolation.cloud_probe --clouds …` (2026-10-17, project `Default_Project_skan22`,
-about three minutes, [raw verdicts](isolation-real-cloud.json)) runs the same probe model against
-the real Neutron security groups that `pulumi up` created. It boots three throwaway probe VMs on
-`sandbox-net`, each with exactly the group a real machine of that kind has, and runs the probes
-from cloud-init; the platform's own VMs (gateways, control plane, relay, bastion) are the targets,
-stock images with nothing listening. The probe VMs, their ports, the floating IP used to read the
-verdicts back and the temporary group are deleted afterwards.
+`uv run python -m isolation.cloud_probe --clouds … --pool-end` runs the same probe model against
+the real Neutron security groups, beside a fully configured deployment (2026-10-18,
+[raw verdicts](isolation-real-cloud.json); [the deployment](real-deployment.md)). It boots four
+throwaway VMs on `sandbox-net`, each with exactly the group a real machine of that kind has, runs
+the probes from cloud-init, and reads the verdicts back through a temporary floating IP. The
+targets are the platform's own hosts, configured by the Ansible roles. Everything the run
+creates is deleted afterwards.
 
 | Probe VM | Group | Dials | Result |
 | --- | --- | --- | --- |
-| `sbx-a` | `sg-sandbox.sandbox` | its neighbour `sbx-b`: 17 ports (15 TCP, 2 UDP) | **all 17 blocked** |
-| `sbx-a` | | both gateways' sandbox addresses (where the agent's port 8443 would be reachable by a sandbox) | **all 34 blocked** |
-| `sbx-a` | | the relay's sandbox address | 14 closed ports blocked; the 3 the policy opens (TCP 4317, 4318 and UDP 5140) reached the relay |
-| `sbx-a` | | the management addresses of bastion, cp-1, cp-2, gw-a, gw-b, relay: 102 probes | **no host reached** (see below) |
-| `gw` | `sg-gateway.sandbox` | `sbx-a` and `sbx-b` | **TCP 80 reached both** (positive control); the other 16 ports of each blocked |
+| `sbx-a` | `sg-sandbox.sandbox` | its neighbour `sbx-b`: 18 ports (16 TCP, 2 UDP) | **all blocked** |
+| `sbx-a` | | both gateways' sandbox addresses (where the agent's 8443 is) | **all blocked** |
+| `sbx-a` | | the gateways' edge addresses and the VIP, through the router | **TCP 80 and 443 reach Traefik**; everything else blocked |
+| `sbx-a` | | the relay's sandbox address | TCP 4317 and 4318 reached; UDP 5140 unverified (syslog never replies); the rest blocked |
+| `sbx-a` | | the management addresses of bastion, cp-1, cp-2, gw-a, gw-b, relay | **no host reached** (see below) |
+| `gw` | `sg-gateway.sandbox` | `sbx-a` and `sbx-b` | **TCP 80 reached both** (the positive control); the other ports blocked |
+| `sbx-a` → `victim` | `sg-relay.sandbox` | forged packets to UDP 5140 | **0 of 32 delivered**; the honest ones arrived |
 
-255 probes, **0 leaks**. A fourth VM, a listener in a relay's group, takes part in the port-security
-check below. Notes on what the numbers mean:
+270 probes, **0 leaks, every expected-open TCP path reached.** Notes:
 
-- *Sandbox to sandbox is blocked on every port*, and the same probes from a machine in the gateway
-  group do get through on port 80 and only port 80, so the block is the security group and not a
-  dead probe.
-- *Management addresses answer "refused" on every port, but not because a host does.* There is no
-  router between `sandbox-net` and `mgmt-net`, so the packets go to `r-edge` and out. The run also
-  probes an address nobody owns on that network (`10.30.0.250`); it gets the same refusal, port
-  for port. What answers is the cloud's router, for the whole prefix. The script counts a refusal
-  as a router's when the unowned-address control says the same, and reports it separately
-  (`answered_by_a_router_not_the_host: 102`). A silent verdict, as for the other networks, would
-  have been cleaner; the refusal is the provider's choice.
-- *Six expected-open paths were closed* in this run: a sandbox to the gateways' edge addresses and
-  the VIP on TCP 80 and 443. The cause is known and is not a policy error: the gateways here are
-  stock VMs, so the `gateway_network` role's policy route is missing and replies to edge-sourced
-  traffic leave by the sandbox port, where port security drops them (the same finding as in the
-  lab, above). The path is only provable once the Ansible roles have run.
-- *Port security, tested by forging.* `sbx-a` runs a script (as root, with raw sockets) that sends
-  to the listener on UDP 5140, the one port a sandbox may reach on a relay: an honest datagram, then
-  datagrams whose **source IP is forged** (a neighbouring sandbox's address, a gateway's, an address
-  nobody holds) and a raw Ethernet frame with a **forged source MAC**. The sender's log shows all
+- *Sandbox to sandbox is blocked on every port*, while the same probes from a machine in the
+  gateway group get through on port 80, and only on port 80. So the block is the security group,
+  not a dead probe.
+- *Management addresses answer "refused" on every port, but no host is answering.* There is no
+  router between `sandbox-net` and `mgmt-net`, so the packets reach `r-edge`, which refuses for the
+  whole prefix: an address nobody owns on that network (`10.30.0.250`, probed as a control) gets
+  the same refusal, port for port. The script counts a refusal as the router's when the control
+  says the same (`answered_by_a_router_not_the_host: 108`).
+- *Port security, tested by forging.* `sbx-a` runs a script (as root, raw sockets) that sends to
+  the listener on UDP 5140, the one port a sandbox may reach on a relay. It sends an honest
+  datagram, then datagrams with a **forged source IP** (a neighbouring sandbox's, a gateway's, an
+  address nobody holds) and a raw Ethernet frame with a **forged source MAC**. Its log shows all
   32 forged packets left the VM; the listener received the honest ones and **none of the forged
-  ones** (`port_security.forged_delivered: 0`). The same sender, run on a network without port
-  security (loopback), delivers all of them, so a silent listener is a block and not a broken
-  sender.
-- Not exercised on the real cloud: forged VRRP adverts (the lab does it), the host firewall (the
-  roles have not been run on real hosts), and internet-to-floating-IP probing
-  (`isolation.real --as internet`).
+  ones**. The same sender on a network without port security (loopback) delivers all of them, so
+  a silent listener means a block, not a broken sender.
+- An earlier run, before the hosts were configured, could not prove the sandbox → gateway 80/443
+  paths. Those replies need the `gateway_network` role's policy route, which only Ansible sets up.
+  On the configured deployment they are open.
+- Not exercised on the real cloud: forged VRRP adverts (the lab does it) and internet-to-floating-IP
+  probing (`isolation.real --as internet`). The host firewall is exercised indirectly: the probes'
+  targets run it, rendered by the `hardening` role.
 
 ## Not covered
 

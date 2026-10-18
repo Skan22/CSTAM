@@ -14,7 +14,7 @@ a few runs touched the real cloud.
 | Dashboard | `dashboard/src` | pages, role-based navigation, session handling, Grafana embedding | 72 |
 | Pulumi | `infra/pulumi/tests` | the rules module against the spec, every CrossGuard policy, the whole program under Pulumi's mocks | 28 |
 | Deploy | `tests/deploy` | every Ansible template rendered per host and read by its real program (nft, keepalived, sshd, systemd, Quadlet generator, Caddy, promtool, amtool, Loki, Tempo, Alloy, PostgreSQL, Grafana) | 67 |
-| Load lab | `tests/load` | 10 to 90 simultaneous registrations against the real gateway stack, the expiry lifecycle with per-team DNS, cold and warm latency, rollback, throughput across 30 teams, the control plane killed under load | 21 (41 with the benchmark's five burst rounds) |
+| Load lab | `tests/load` | 10 to 90 simultaneous registrations against the real gateway stack, the expiry lifecycle with per-team DNS, cold and warm latency, rollback, throughput across 30 teams, the control plane killed under load | 22 (42 with the benchmark's five burst rounds) |
 | Chaos lab | `tests/chaos` | failover, hot reload, traffic, split brain on real keepalived, Traefik and agents | 46 |
 | Isolation lab | `tests/isolation` | every source, destination, address and port against `security-groups.yaml`, both layers and each alone | 35 |
 | System, lab-free | `tests/` | spec cross-checks, oracle, event parsing, dashboard rendering | 99 with `deploy` (49 lab tests skip outside the lab) |
@@ -65,8 +65,8 @@ Both leave the cloud as they found it.
 and for the internet, router namespaces that forward and map the floating IPs, and two
 enforcement layers built from the same spec by different code: the nftables the `hardening`
 role renders on each host, and a bridge-level emulation of Neutron port security and security
-groups. A probe dials every other machine on every address it has and 17 ports (1,683 probes per
-pass); the policy opens 105 of them, which act as positive controls. It also forges source MAC
+groups. A probe dials every other machine on every address it has and 18 ports (1,782 probes per
+pass); the policy opens 112 of them, which act as positive controls. It also forges source MAC
 and IP, forges VRRP adverts, reroutes through every neighbour, floods the relay, and turns each
 layer off in turn. Results: [isolation report](../reports/isolation.md).
 
@@ -77,10 +77,13 @@ Caddy front and the embedding is exercised through it.
 
 ## Real-cloud runs
 
-`pulumi preview`, `up` and `destroy` were run against the team's FelCloud project several times
-(from an empty project: 79 resources planned, VMs ACTIVE in about 45 s, destroy in about 30 s),
-and the demo drives the same. The Ansible roles, VRRP between real OpenStack VMs, and replication
-have **not** been run on real hosts.
+`pulumi preview`, `up` and `destroy` were run against the team's FelCloud project many times
+(about 90 resources, up in about a minute, destroy in about 30 s), and the demo drives the same.
+On 2026-10-18 the Ansible roles were run on the six real VMs, the sandbox image was baked, and the
+platform was exercised from the internet: failover between the two real gateway VMs, teams
+registered through the real gateways, and the isolation probes against the configured hosts. That
+run found **21 defects no lab had shown**; they are listed, with their fixes and regression tests, in
+[the first real deployment](../reports/real-deployment.md#defects-found-and-fixed).
 
 ## What running the real software found
 

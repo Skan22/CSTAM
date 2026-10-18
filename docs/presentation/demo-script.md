@@ -64,6 +64,10 @@ Quote these from [the benchmark report](../reports/benchmarks.md), and say they 
   quarantine period (default 60 s) plus about **2 s** later;
 - the control plane killed for 8 s under load: **0 failed requests**.
 
+The same failover, measured between the two real gateway VMs on FelCloud through the floating IP
+([the real deployment](../reports/real-deployment.md)): primary loses power **1.0 s**, Traefik
+stopped **1.36 s**, planned **0.24 s**. Quote those when asked whether the lab numbers hold up.
+
 ## If something goes wrong on camera
 
 | Symptom | Cause | Fix |

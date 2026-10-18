@@ -1,0 +1,4 @@
+{"scenario": "vm-death", "what": "Nova hard reboot of the MASTER (power loss)", "requests": 2251, "failed": 49, "worst_gap_s": 1.0, "rate_per_s": 50, "path": "bastion -> floating IP -> VIP"}
+{"scenario": "traefik-crash-restarted", "what": "Traefik killed with SIGKILL on the MASTER; systemd restarted it", "requests": 1251, "failed": 65, "worst_gap_s": 1.32, "rate_per_s": 50, "path": "bastion -> floating IP -> VIP"}
+{"scenario": "traefik-stopped", "what": "Traefik stopped on the MASTER and left down", "requests": 1251, "failed": 67, "worst_gap_s": 1.36, "rate_per_s": 50, "path": "bastion -> floating IP -> VIP"}
+{"scenario": "planned-failover", "what": "POST /v1/gateways/failover (control plane -> agent /fault over mTLS)", "requests": 1001, "failed": 11, "worst_gap_s": 0.239, "rate_per_s": 50, "path": "bastion -> floating IP -> VIP"}

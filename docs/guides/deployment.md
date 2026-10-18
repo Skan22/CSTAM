@@ -7,7 +7,7 @@ services (day 2). `platform.yaml` and `security-groups.yaml` feed all three.
 | Layer | Directory | Does | Tested by |
 | --- | --- | --- | --- |
 | Pulumi | `infra/pulumi` | networks, routers, security groups, VIP port, floating IPs, 6 VMs, key pair, CrossGuard policies | mocked tests; run against the real cloud |
-| Ansible | `ansible` | 14 roles and 6 playbooks (below) | `tests/deploy`: every template read by its real program; `ansible-lint` production profile |
+| Ansible | `ansible` | 14 roles and 6 playbooks (below) | `tests/deploy`: every template read by its real program; `ansible-lint` production profile; run on real FelCloud VMs |
 | Quadlets | `quadlets` | 13 container units with health checks and auto-update | Podman 5.4.2's own Quadlet generator |
 
 ## Before you start
@@ -58,37 +58,63 @@ gate is the mocked test in `infra/pulumi/tests`; at `up` every resource is check
 
 ## Day 1: Ansible
 
+The roles have been run on real FelCloud VMs ([the first real deployment](../reports/real-deployment.md)).
+A first run differs from later ones in two ways: nothing can reach the hosts yet except through
+the bastion's floating IP, and the bastion's WireGuard does not exist until this run creates it.
+
 ```bash
+# day 0, with SSH to the bastion opened for your address for this first run only
+pulumi config set ipo:bootstrapSshFrom "$(curl -s https://api.ipify.org)/32" && pulumi up
+
 cd ansible
 ansible-galaxy collection install -r requirements.yml     # only the openstack.cloud inventory plugin
-ansible-playbook playbooks/site.yml -e @secrets.yaml      # run it twice: the second run changes nothing
+# run.yml:
+#   ipo_jump: debian@<the bastion's floating IP>   # every other host is reached through it
+#   bootstrap_ssh_from: <your address>/32          # the bastion's own firewall keeps SSH open for it
+#   control_plane_build_on_host: true              # no registry: build the image on cp-1 and cp-2
+#   ipo_registry: localhost/ipo
+ansible-playbook playbooks/site.yml -e @secrets.yaml -e @run.yml
 ```
 
-`inventory/openstack.yml` builds the inventory from the VMs' `role` tag (use `-i
-inventory/static.yml` if the API is down); operators reach the hosts through the bastion's
-WireGuard tunnel (`bastion_peers` in `inventory/group_vars/bastions.yml`).
+Then set up a WireGuard peer (the play prints the bastion's public key), remove
+`ipo:bootstrapSshFrom` and `bootstrap_ssh_from`, and run both again: from then on operators come
+in through the tunnel only. `inventory/openstack.yml` builds the inventory from the VMs' `role` tag
+(use `-i inventory/static.yml` if the API is down).
 
 `site.yml` runs, in order:
 
 | Order | Hosts | Roles |
 | --- | --- | --- |
-| 1 | all | `common` (users, time, journald, operators), `hardening` (nftables from `security-groups.yaml`, sysctls, SSH, auditd), `alloy` (metrics and logs) |
-| 2 | cp-1, then cp-2 | `podman`, `step_ca`, `postgres`, `control_plane`; cp-1 first because it holds the CA and the primary |
-| 3 | cp-2 | `observability` (Prometheus, Alertmanager, Loki, Tempo, Grafana) |
-| 4 | gw-a, then gw-b, one at a time so the other keeps the VIP | `podman`, `step_ca`, `gateway_network`, `keepalived`, `gw_agent`, `traefik` |
-| 5 | relay, bastion | `relay`; `bastion` (WireGuard) |
+| 1 | bastion | `common`, `hardening`, `bastion` (WireGuard, and the egress proxy the others need next) |
+| 2 | all | `common` (users, time, journald, operators, apt through the egress proxy), `hardening` (nftables from `security-groups.yaml`, sysctls, SSH, auditd), `alloy` (metrics and logs; tag `observability`) |
+| 3 | cp-1, then cp-2 | `podman`, `step_ca`, `postgres`, `control_plane`; cp-1 first because it holds the CA and the primary |
+| 4 | cp-2 | `observability` (Prometheus, Alertmanager, Loki, Tempo, Grafana; tag `observability`) |
+| 5 | gw-a, then gw-b, one at a time so the other keeps the VIP | `podman`, `step_ca`, `gateway_network`, `keepalived`, `gw_agent`, `traefik` |
+| 6 | relay | `relay` |
 
-Other playbooks: `bake_image.yml` (boot a builder, harden it, strip machine id and SSH host keys,
-snapshot as `ipo-sandbox-vN`, delete it), `promote_replica.yml`, `rotate_certs.yml`.
+Other playbooks: `bake_image.yml` (boot a builder, harden it, install Podman, Alloy and the
+placeholder page, strip machine id and SSH host keys, snapshot as `ipo-sandbox-vN`, delete it;
+about 15 minutes on FelCloud), `promote_replica.yml`, `rotate_certs.yml`.
 
-Notes for a first run:
+### What a FelCloud deployment needs to know
 
+- **No SNAT.** FelCloud's routers give no outbound route to a VM without a floating IP. The bastion
+  (which has one) runs an allow-listed HTTP(S) proxy on its management address, and apt and Podman
+  on the other hosts use it (`ipo_egress_proxy`, set automatically; empty it on a cloud whose
+  routers do SNAT). The allow-list is `bastion_proxy_allow`: Debian, Grafana's apt repository,
+  Docker Hub and its CDNs, GHCR, Quay, GitHub releases and PyPI. Anything else is refused, so add a
+  host there if a role needs a new source. Sandboxes have no route out at all, by design: what they
+  need is baked into their image.
+- **The control plane's cloud credential.** `control_plane_cloud: openstack` (the default) needs an
+  application credential in `ipo_secrets.clouds_yaml`. `fake` runs everything else for real but
+  boots no sandboxes, for trying the platform out.
+- **Registration probes through the gateways.** The management network has no path to the VIP, so
+  the control plane asks the agents to request a new team's host (`POST /probe`). A sandbox on
+  FelCloud serves about 90 s after it is created, so the probe waits up to `IPO_PROBE_TIMEOUT`
+  (180 s).
 - The base image must be Debian 13 (Podman 5.0+); the `podman` role refuses older versions.
-- The `alloy` role installs from Grafana's apt repository and supports Debian only.
-- Roles use only `ansible.builtin`, so no collection beyond the inventory plugin is needed.
-- The playbooks have been linted and syntax-checked and every template has been read by the
-  program that will use it, **but they have not been run on real VMs yet**. Expect to find
-  environment issues on the first run; each role is small and idempotent.
+- The first start of the control plane re-owns its image for its user namespace (several minutes
+  on a cloud disk); the role does that before the unit starts.
 
 ## Day 2: Quadlets
 
@@ -113,9 +139,9 @@ DNS at all, `curl -H 'Host: <slug>.<domain>' http://<floating IP>/` reaches the 
 
 1. `GET https://<cp-1 mgmt IP>:8000/readyz` returns 200 on both control-plane hosts.
 2. The dashboard's Gateways page shows exactly one MASTER and both gateways on the same config version.
-3. Register a test team and request its subdomain through the VIP.
-4. `.ci/isolation-dev.sh` runs the isolation probes from a sandbox and from the internet and
-   exits non-zero on any leak.
+3. Register a test team and request its subdomain through the floating IP, from outside.
+4. `uv run python -m isolation.cloud_probe --clouds … --pool-end` (in `tests/`) boots probe VMs
+   with the real security groups beside the deployment and exits non-zero on any leak.
 5. Fail over (`POST /v1/gateways/failover`) and check the other gateway becomes MASTER.
 
 ## CI

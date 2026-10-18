@@ -49,7 +49,7 @@ config version on both gateways.
 | A | A saga (or an admin action) inserts or deletes a row in `routes` |
 | B | PostgreSQL `NOTIFY ipo_routes_changed` wakes the compiler, which batches bursts: it waits 30 ms for company, then compiles at most every 150 ms, and changes that arrive while a version is being pushed go into the next one, so a burst of 50 registrations costs a handful of versions, not 50 |
 | C | The compiler renders Traefik's dynamic config, computes its SHA-256, signs `version + hash + body` with Ed25519, stores it in `config_versions`, and `PUT`s it to **both** agents over mTLS. Each agent also polls `GET /v1/config/latest` every 5 s, which covers a missed push |
-| 1 to 7 | Inside the agent, in order: **verify** the signature (403 if bad), **validate** the content, **stage** to `staging.json` (fsync), **swap** by atomic rename onto `live.yml`, **converge** (wait until Traefik's API lists the new routers), **probe** (request every route changed since the live config, plus the canary, through Traefik), **commit** (hard-link as `lkg-N.json`, drop older ones) |
+| 1 to 7 | Inside the agent, in order: **verify** the signature (403 if bad), **validate** the content, **stage** to `staging.json` (fsync), **swap** by atomic rename onto `live.yml`, **converge** (wait until Traefik's API lists the new routers), **probe** (request every route changed since the live config, plus the canary, through Traefik: a changed route must be loaded, so a 404 fails it, while a new team's VM that does not answer yet (502/504) does not; the canary must answer), **commit** (hard-link as `lkg-N.json`, drop older ones) |
 | D | The agent answers `200` with its `live_version`. The version becomes `live` only when both gateways acknowledge it; if either refuses (policy 422), it is marked `rejected` |
 
 **The compiled config** is a pure function of the routes: the same routes always produce the same
@@ -91,7 +91,7 @@ end even when no team has changed.
 | Signature does not verify | `403`; nothing touches `live.yml`; `IPOConfigSignatureRejected` pages |
 | Content breaks the rules | `422` with the reason; not retried |
 | Same version and hash again | acknowledged as a no-op; an older or equal version with a different hash is a `409` replay |
-| Probe fails or Traefik does not converge in time | `live.yml` is restored from the last known good file, `422`, `IPOConfigRolledBack` warns; the control plane marks that version `rejected` until the next route change |
+| A changed route is missing (404), the canary fails, or Traefik does not converge in time | `live.yml` is restored from the last known good file, `422`, `IPOConfigRolledBack` warns; the control plane marks that version `rejected` until the next route change |
 | Agent killed mid-swap | on start it resets `live.yml` to the newest `lkg-*` file (or an empty config) |
 | An agent is unreachable | the push retries with backoff (5 attempts); the reconciler re-pushes a gateway that is behind |
 | Control plane down | nothing changes; both gateways keep the last verified config |

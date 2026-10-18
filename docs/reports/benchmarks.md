@@ -8,7 +8,7 @@ measured on two environments that this report keeps apart, plus what the measuri
   [bursts](#simultaneous-registrations) · [failover](#gateway-failover) ·
   [expiry and recycling](#expiry-and-ip-recycling) · [rollback](#config-rollback) ·
   [throughput](#gateway-throughput) · [control-plane crash](#control-plane-killed-under-load)
-- [Results on FelCloud](#results-on-felcloud)
+- [Results on FelCloud](#results-on-felcloud) · [with the real gateways](#on-felcloud-with-the-real-gateways)
 - [What the benchmarks changed](#what-the-benchmarks-changed) · [Caveats](#caveats) ·
   [Reproduce](#reproduce)
 
@@ -18,9 +18,10 @@ measured on two environments that this report keeps apart, plus what the measuri
 | --- | --- | --- |
 | How fast is one registration? | **0.4 s** from request to serving traffic through both gateways (lab, warm path) | [provisioning](#provisioning-latency) |
 | Do 10+ simultaneous registrations work? | **Yes: 10, 20, 30, 50 and 90 at the same instant, 5 rounds each, 1,000 teams in all: 1,000 `active`, 0 failures, 0 duplicate addresses, every host served by its own sandbox** | [bursts](#simultaneous-registrations) |
+| Through the real gateways? | **active 0.6 s after the request** onto a booted sandbox, served from the internet by its own VM; onto a VM still booting, active when it serves (94 s), first attempt | [real gateways](#on-felcloud-with-the-real-gateways) |
 | How long do they take? | whole burst served in **0.5 s (10), 0.8 s (20), 1.1 s (30), 1.5 s (50), 2.5 s (90)** (lab); **on FelCloud, 20 at once: 2.4 s warm** | [bursts](#simultaneous-registrations), [FelCloud](#results-on-felcloud) |
 | And with no warm VM (cold)? | the platform adds under half a second; **on FelCloud the Nova boot dominates: ten concurrent cold registrations took 108–140 s**, so the pool grows with demand | [FelCloud](#results-on-felcloud) |
-| Gateway failover time? | primary VM dies: **0.52–0.72 s**; Traefik crashes: **1.4–1.5 s**; planned failover: **0.12 s** (longest silence in a 50 requests/s stream; targets 2 s / 4 s) | [failover](#gateway-failover) |
+| Gateway failover time? | **between two real FelCloud VMs: primary loses power 1.0 s, Traefik down 1.36 s, planned failover 0.24 s**; lab: 0.52–0.72 s, 1.4–1.5 s, 0.12 s (longest silence in a 50 requests/s stream; targets 2 s / 4 s) | [real VMs](#on-felcloud-with-the-real-gateways), [lab](#gateway-failover) |
 | IP recycling speed? | route and DNS gone **1.5 s** after expiry; an address is reusable **about 2 s after its quarantine ends**; **FelCloud: 20 teams torn down in 14 s, 10 in 4.5–6 s, addresses free about 7 s later with a 5 s quarantine** | [recycling](#expiry-and-ip-recycling) |
 | Load? | **2,000 requests/s** across 30 teams' hosts, new connection each, 0 failures, p99 5.6 ms (lab; the generator's limit before the gateways') | [throughput](#gateway-throughput) |
 | Control plane down? | killed with `-9` for 8 s under 100 requests/s: **0 failed requests**; back and registering in 1 s | [crash](#control-plane-killed-under-load) |
@@ -201,9 +202,43 @@ What this says:
 Not measured on FelCloud: requests through a real VIP and floating IP (nothing answers behind them
 until the Ansible roles run), and failover between two OpenStack VMs.
 
+## On FelCloud with the real gateways
+
+The whole platform deployed by its Ansible roles on six FelCloud VMs
+([the deployment](real-deployment.md)): two gateways (keepalived, Traefik, `ipo-agent`, mutual
+TLS), two control-plane replicas, Postgres primary and replica. Load came from the bastion: 50 new
+connections per second to the **floating IP**, so every request crossed the internet-facing path
+(floating IP → VIP → the MASTER's Traefik).
+
+| Failure | Requests | Failed | Longest gap |
+| --- | --- | --- | --- |
+| MASTER VM loses power (Nova hard reboot) | 2,251 | 49 | **1.00 s** |
+| Traefik killed on the MASTER (systemd restarts it within a second; no failover needed) | 1,251 | 65 | **1.32 s** |
+| Traefik stopped on the MASTER and left down (two failed checks, FAULT) | 1,251 | 67 | **1.36 s** |
+| Planned failover: `POST /v1/gateways/failover` → agent `/fault` over mutual TLS | 1,001 | 11 | **0.24 s** |
+
+Raw lines: [`failover-real-cloud.jsonl`](failover-real-cloud.jsonl). The real VMs take a little
+longer than the lab for a dead VM (1.0 s against 0.6 s), as the network has to relearn where the
+VIP lives; all are well inside the 2 s and 4 s targets. The rebooted gateway rejoined as BACKUP
+without taking the VIP back.
+
+**Registration through the real gateways** (control plane on its two real hosts with the fake
+cloud adapter; sandboxes booted from the baked image at the addresses it assigned):
+
+| Case | Result | Steps |
+| --- | --- | --- |
+| Sandbox already serving | **active 0.6 s after the request**, first attempt | config on both gateways 0.22 s; probe through the gateways 0.04 s |
+| Sandbox created at the same moment | **active 94 s after the request**, first attempt | route loaded on both gateways in 2.4 s (Traefik 504 until the VM is up); probe waited 79 s for the VM |
+
+Both served the team's own VM to a laptop on the internet through the floating IP. A FelCloud guest
+serves about 90 s after it is created whichever image it boots: the baked `ipo-sandbox-v1` is
+ACTIVE in 20 s and serving in 88 s, stock Debian in 24 s and 102 s. So a cold registration on this
+cloud takes a minute and a half however the platform is tuned, and the warm pool (which grows to
+recent demand) is what makes registration fast.
+
 ## What the benchmarks changed
 
-Measuring found nine defects, all fixed and covered by regression tests:
+Measuring found nine defects, all fixed and covered by regression tests (the real deployment then found 21 more, listed in [its report](real-deployment.md#defects-found-and-fixed)):
 
 | Found by | Defect | Before → after |
 | --- | --- | --- |
@@ -216,6 +251,7 @@ Measuring found nine defects, all fixed and covered by regression tests:
 | first FelCloud run | the reconciler deleted VMs that were still building (a boot outlasts its 30 s grace and the VM is not yet matched to its port), then failed their teams | a building VM is not an orphan; its name says which address it is for |
 | second FelCloud run | teardown's check for leftovers counted servers Nova had accepted a delete for or keeps listing as DELETED, so every teardown failed over to the reconciler's minute | those are not counted or reused: **10 teams torn down in 85 s → 6 s** |
 | cold bursts on FelCloud | cold registrations take minutes and the pool was a fixed size | the pool follows demand: **grows to the last 15 minutes' registrations** (`pool.max_size`), shrinks after |
+| a booting sandbox on the real gateways | the gateway rolled back a config whose new team's VM did not answer yet, and every later change carried that route again: one slow VM blocked all registrations | only a missing route or a failing canary rolls back; Traefik gives up on an unreachable backend in 2 s; registration waits for the VM through the gateways: **94 s, first attempt** |
 
 ## Caveats
 
@@ -226,7 +262,7 @@ Measuring found nine defects, all fixed and covered by regression tests:
   to boot; whole cold bursts of 83–190 s across runs). The FelCloud runs were made with the
   control plane at different points of this work; the warm-path numbers do not depend on the
   changes to config batching, because no gateways stood behind them.
-- **Failover is measured with the real software in namespaces**, not between two OpenStack VMs.
+- **Failover is measured both ways**: with the real software in namespaces (many runs) and between two real FelCloud VMs (one run of each failure).
 - The cold FelCloud numbers use the stock Debian image; the baked image (Podman and the
   application preinstalled) would shorten the first-boot work but not Nova's scheduling and
   image-copy time.

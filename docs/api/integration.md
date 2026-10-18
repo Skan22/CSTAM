@@ -50,9 +50,10 @@ TOKEN=$(curl -s https://ipo.example/v1/auth/login \
 | Role | Can |
 | --- | --- |
 | `viewer` | read: teams, jobs, pool, IPAM, gateways, traffic, events |
-| `operator` | viewer + register, delete and extend teams; what the gateway agents use to report |
+| `operator` | viewer + register, delete and extend teams |
 | `admin` | operator + settings, config versions and rollback, audit log, manual failover, team logins |
 | `team` | a single team's own login: `/v1/me`, `/v1/me/traffic`, `/v1/me/traffic/recent`, `/v1/me/events`. It is refused everywhere else, and never sees another team |
+| `gateway` | a gateway agent's login, bound to one gateway: its own `heartbeat` and `traffic` routes and `GET /v1/config/latest`. Refused everywhere else and for the other gateway |
 
 Each role includes the ones before it, except `team`, which is outside the ladder. A team token
 stops working as soon as its team is deleted, even before it expires.
@@ -196,9 +197,9 @@ Each step has `status` (`running`, `done`, `failed`, `undone`), timestamps and a
 | --- | --- | --- |
 | `GET /v1/gateways` | viewer | `{gateways: [{gateway, vrrp_state, live_version, last_heartbeat}], split_brain}` |
 | `POST /v1/gateways/failover` | admin | `{}` → `202 {gateway}`: the MASTER gives up the VIP on purpose |
-| `POST /v1/gateways/{name}/heartbeat` | operator | agents: `{vrrp_state, live_version}` → `204` |
-| `POST /v1/gateways/{name}/traffic` | operator | agents: access-log counters → `204` |
-| `GET /v1/config/latest` | operator | the newest signed version `{version, sha256, signature, body}`; agents pull it if a push was missed |
+| `POST /v1/gateways/{name}/heartbeat` | gateway (its own), operator | agents: `{vrrp_state, live_version}` → `204` |
+| `POST /v1/gateways/{name}/traffic` | gateway (its own), operator | agents: access-log counters → `204` |
+| `GET /v1/config/latest` | gateway, operator | the newest signed version `{version, sha256, signature, body}`; agents pull it if a push was missed |
 | `GET /v1/config/versions` | admin | `{versions: [{version, sha256, status, created_at}], pinned}` |
 | `GET /v1/config/versions/{n}` | admin | the version with its signature and body |
 | `POST /v1/config/rollback` | admin | `{version: n}` pins the config to an earlier body (re-issued under a new, higher version); `{version: null}` unpins |
@@ -254,7 +255,8 @@ lab with `IPO_AGENT_INSECURE=1`). It is called by the control plane, not by user
 
 | Call | Who | Does |
 | --- | --- | --- |
-| `PUT /config` | control plane | deliver `{version, sha256, signature, body}`; verified (Ed25519, version newer than the live one, policy rules), staged, swapped in, and only committed after Traefik serves it and the changed routes plus a canary answer. Otherwise rolled back, and the answer says why |
+| `POST /probe` | control plane certificate only | `{host}` → `{ok, routed, error}`: request the host once through this gateway's Traefik. Registration uses it to learn that a new team's sandbox serves, since the management network has no path to the VIP |
+| `PUT /config` | control plane | deliver `{version, sha256, signature, body}`; verified (Ed25519, version newer than the live one, policy rules), staged, swapped in, and only committed after Traefik serves it and the changed routes plus a canary answer. Otherwise rolled back, and the answer says why. A new team's route whose VM does not answer yet (502/504) is not a reason to roll back: the route is loaded; only a missing route (404) or a failing canary is |
 | `GET /status` | anyone with a client certificate | live version, VRRP state, faulted, uptime |
 | `POST /fault`, `DELETE /fault` | admin certificate only | give up MASTER on purpose / rejoin |
 | `GET /metrics`, `GET /healthz` | scrapers | Prometheus text; liveness |
@@ -324,7 +326,8 @@ team got a different address and was served by its own sandbox
 - A team token is useless after its team is deleted, and a deleted team's login, traffic history
   and route are purged; the audit log (a hash chain, verified by `GET /v1/audit`) keeps only that
   the team existed and what was purged.
-- Agents authenticate with an `operator` account today; a narrower role is a known follow-up
-  ([security architecture](../architecture/security.md#known-gaps)).
+- Gateway agents authenticate with a `gateway` account bound to their own gateway, so a
+  compromised gateway can report only for itself and read only the config it would be sent anyway.
+- Every team's route is rate-limited by Host (200 requests/s, burst 100); over it, clients get 429.
 - The API validates every body strictly (extra fields are errors) and bounds list sizes; traffic
   reports are capped at 500 hosts and 200 recent requests per report.

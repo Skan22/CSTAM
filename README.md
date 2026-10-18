@@ -19,7 +19,7 @@ control plane creates, routes, repairs and removes sandboxes automatically.
 - **Never trust the control plane blindly.** Configs are Ed25519-signed, and each agent
   re-validates them, probes every change, and rolls back on failure.
 - **Isolate sandboxes.** One policy file, enforced by Neutron security groups and by nftables on
-  every host, probed 1,683 ways in a lab and 255 ways against the real FelCloud security groups
+  every host, probed 1,782 ways in a lab and 270 ways against the real FelCloud security groups
   ([results](docs/reports/isolation.md)).
 - **Clean up after itself.** Leases expire, routes and DNS records are removed before VMs,
   addresses are verified clean and quarantined, logins and traffic are purged, and a reconciler
@@ -78,8 +78,10 @@ Needs Linux with unprivileged user namespaces; no root. Everything else is in
 
 ## Status
 
-Verified: 354 control-plane tests against a real PostgreSQL, the Go agent with `-race`, 72
-dashboard tests, 28 infrastructure tests, 67 deploy checks, 46 chaos-lab, 21 load-lab and 35
-isolation-lab tests, `pulumi up` / `destroy`, an isolation run and a provisioning benchmark
-against the real FelCloud project. **Not yet verified:** the Ansible roles on real VMs and VRRP
-between two real OpenStack VMs. The full list is in the [submission guide](docs/SUBMISSION.md#gaps).
+Verified: 371 control-plane tests against a real PostgreSQL, the Go agent with `-race`, 72
+dashboard tests, 31 infrastructure tests, 68 deploy checks, 46 chaos-lab, 22 load-lab and 35
+isolation-lab tests. **Deployed on FelCloud by its own Pulumi program and Ansible roles**:
+failover between the two real gateway VMs (1.0 s for a power loss), teams registered through the
+real gateways and served from the internet, and the isolation probes against the configured
+platform ([the first real deployment](docs/reports/real-deployment.md)). What is still not verified
+is listed in the [submission guide](docs/SUBMISSION.md#gaps).

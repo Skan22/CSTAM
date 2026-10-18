@@ -103,6 +103,12 @@ def slides(n: dict[str, Any]) -> list[str]:
 <li>Teardown of {n['real_teardown'][-1][0]} teams: <b>{n['real_teardown'][-1][1]:.0f} s</b>; addresses free again <b>{n['real_recycle']:.1f} s</b> after (5 s quarantine).</li>
 <li>The real cloud caught three bugs the lab could not: warm claims on booting VMs, the reconciler deleting VMs mid-boot, teardown waiting on Nova's lingering DELETED entries (85 s → 6 s).</li></ul></div>""")
 
+    slide("Deployed for real: the whole platform on FelCloud", """
+<div class="two"><ul><li>Pulumi built it; <b>the Ansible roles configured all six VMs</b>; the sandbox image was baked; then it was used from the internet.</li>
+<li><b>A team registered through the real gateways is active 0.6 s after the request</b> and served from a laptop through the floating IP by its own VM. One whose VM is still booting: active when the VM serves (94 s), first attempt.</li>
+<li><b>21 defects no lab could show</b>, all fixed: FelCloud's routers do not SNAT (the bastion now runs an allow-listed egress proxy); config pushes silently sent no client certificate; the control plane had no path to the VIP for its probe; one slow VM could block every later registration.</li></ul>
+<div class="facts"><div><b>6</b> real VMs configured by Ansible</div><div><b>0.6 s</b> registration, real gateways</div><div><b>21</b> real-world defects fixed</div></div></div>""")
+
     slide("Hot reload and rollback", f"""
 <ul class="big"><li>Registering or deleting a team changes the routing table <b>without touching Traefik's process</b>.</li>
 <li>Config is <b>Ed25519-signed</b>; each agent re-validates it (every backend inside the sandbox range), swaps it atomically, probes every changed route, and <b>rolls back</b> on failure.</li>
@@ -113,7 +119,8 @@ def slides(n: dict[str, Any]) -> list[str]:
     slide("High availability", f"""
 <div class="two"><div><img src="{(IMG / 'chart-failover.png').as_uri()}"></div>
 <ul><li>VRRP, unicast peers, health check that fails keepalived when Traefik is down.</li>
-<li>Primary VM dies: longest silence <b>{n['vm_gap'][0]:.2f}–{n['vm_gap'][1]:.2f} s</b>. Traefik crashes: <b>{n['tr_gap'][0]:.1f}–{n['tr_gap'][1]:.1f} s</b>. Planned failover: <b>0.12 s</b>.</li>
+<li><b>Between two real FelCloud VMs</b>, through the floating IP: primary loses power <b>1.0 s</b>; Traefik down <b>1.36 s</b>; planned failover <b>0.24 s</b>. The old primary rejoins as BACKUP.</li>
+<li>Lab, many runs: VM dies <b>{n['vm_gap'][0]:.2f}–{n['vm_gap'][1]:.2f} s</b>; Traefik <b>{n['tr_gap'][0]:.1f}–{n['tr_gap'][1]:.1f} s</b>; planned <b>0.12 s</b>.</li>
 <li>Split brain: detected from both heartbeats, alarmed, healed to one master.</li></ul></div>""")
 
     life = n["life"]
@@ -125,29 +132,30 @@ def slides(n: dict[str, Any]) -> list[str]:
 
     slide("Network isolation", """
 <div class="two"><ul><li><b>Three independent layers</b> from one policy file: Neutron security groups, port security, nftables on every host.</li>
-<li>Lab: <b>1,683 probes</b>, each layer alone, forged frames, rerouting, floods.</li>
-<li><b>Real FelCloud, probe VMs behind the real security groups:</b> 255 probes, <b>0 leaks</b>. Sandbox→sandbox blocked on every port; gateway management addresses blocked; positive controls pass.</li>
+<li>Lab: <b>1,782 probes</b>, each layer alone, forged frames, rerouting, floods.</li>
+<li><b>Real FelCloud, probe VMs behind the real security groups:</b> 270 probes, <b>0 leaks</b>. Sandbox→sandbox blocked on every port; gateway management addresses blocked; positive controls pass.</li>
 <li><b>Port security proven on the real cloud:</b> a sandbox sent forged source IPs (a neighbour's, a gateway's, an unused one) and a forged MAC, 32 forged packets: <b>0 delivered</b>.</li></ul>
-<div class="facts"><div><b>0</b> leaks of 255 probes</div><div><b>0 of 32</b> forged packets delivered</div><div><b>3</b> independent layers</div></div></div>""")
+<div class="facts"><div><b>0</b> leaks of 270 probes</div><div><b>0 of 32</b> forged packets delivered</div><div><b>3</b> independent layers</div></div></div>""")
 
     slide("API and security architecture", """
 <ul class="big"><li><b>Integration guide:</b> bearer JWT with roles, idempotent asynchronous operations (<code>202</code> + job), RFC 9457 errors, server-sent events, OpenAPI + Postman, DNS modes, client code.</li>
 <li><b>STRIDE per component:</b> edge, gateway agent, API, database, sandboxes, management plane, each threat with its control and the test that would fail without it.</li>
-<li><b>Named gaps:</b> agents use an operator account, no per-team rate limit, TLS to teams optional, nftables rather than eBPF.</li></ul>""")
+<li><b>Closed:</b> gateway agents log in with an account bound to their own gateway; every team's route is rate-limited by its Host (a flood gets 429s, its neighbour does not notice); platform egress goes through an allow-listed proxy.</li>
+<li><b>Named gaps:</b> one rate limit for all teams, TLS to teams optional, nftables rather than eBPF.</li></ul>""")
 
     slide("Evidence", """
-<div class="facts wide"><div><b>354</b> control-plane tests on a real PostgreSQL</div><div><b>72</b> dashboard tests</div><div><b>67</b> deploy checks on the real config readers</div>
-<div><b>46 + 21 + 35</b> chaos, load and isolation lab tests</div><div><b>Go</b> agent with <code>-race</code></div><div><b>ruff · mypy --strict · tsc · go vet · ansible-lint</b> clean</div></div>
-<p class="note">Everything above can be re-run: <code>load.bench</code>, <code>chaos.run</code>, <code>isolation.run</code>, <code>isolation.cloud_probe</code>, <code>bench.real_cloud</code>.</p>""")
+<div class="facts wide"><div><b>371</b> control-plane tests on a real PostgreSQL</div><div><b>72</b> dashboard tests</div><div><b>68</b> deploy checks on the real config readers</div>
+<div><b>46 + 22 + 35</b> chaos, load and isolation lab tests</div><div><b>Go</b> agent with <code>-race</code></div><div><b>ruff · mypy --strict · tsc · go vet · ansible-lint</b> clean</div></div>
+<p class="note">Everything above can be re-run: <code>load.bench</code>, <code>chaos.run</code>, <code>isolation.run</code>, <code>isolation.cloud_probe</code>, <code>bench.real_cloud</code>, and the deployment itself (<code>site.yml</code>).</p>""")
 
     slide("Demo", """
 <p>The scripted demo, recorded against the real lab: subdomain routing → hot reload → a burst of 12 → expiry → failover → VM death → split brain.</p>
 <p class="note"><code>docs/presentation/demo.mp4</code> (104 s) · <code>python -m chaos.demo</code> to run it live (<kbd>b</kbd> burst, <kbd>e</kbd> expire, <kbd>f</kbd> fail over, <kbd>k</kbd> kill a VM).</p>""")
 
     slide("Limits and next steps", """
-<div class="two"><div><h3>Not done</h3><ul><li>Ansible roles on real hosts; VRRP between two real OpenStack VMs</li>
-<li>Per-team rate limits at the gateway; a narrower agent role</li><li>Wildcard TLS for team subdomains</li></ul></div>
-<div><h3>Next</h3><ul><li>Those, then a second region for the control plane</li><li>Baked sandbox image to shorten first boot</li></ul></div></div>""")
+<div class="two"><div><h3>Not done</h3><ul><li>The control plane's real cloud adapter on the deployed hosts (it needs a credential the team issues)</li>
+<li>The observability stack on real hosts; WireGuard with a real peer</li><li>A compute-host failure (soft anti-affinity only)</li><li>Wildcard TLS for team subdomains</li></ul></div>
+<div><h3>Next</h3><ul><li>Those, then a rate limit sized per team (today one size for all) and a second region for the control plane</li></ul></div></div>""")
     return s
 
 

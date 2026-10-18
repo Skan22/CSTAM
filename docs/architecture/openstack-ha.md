@@ -9,15 +9,15 @@ fails: what each failure costs, how it is detected, and what the evidence is.
 
 ## Targets
 
-| Objective | Target | Measured (lab) |
-| --- | --- | --- |
-| Gateway VM dies | VIP moves in about 2 s | **0.52 to 0.72 s** worst request gap (22 runs) |
-| Traefik crashes or hangs | about 4 s | **1.2 to 2.1 s** (SIGKILL, SIGTERM, 24 runs) |
-| keepalived stopped cleanly | immediate | **0.12 s** |
-| Manual failover through the control plane | under 1.5 s | **0.12 s** |
-| Old MASTER comes back | no second outage | **0 s**, no flap (nopreempt) |
-| Both gateways claim MASTER (partition) | detected within seconds | alarm in about 5 s; one MASTER again after healing |
-| Control plane down | gateways keep serving | verified: config pipeline works with no control plane |
+| Objective | Target | Measured (lab) | Measured on FelCloud (two real VMs, through the floating IP) |
+| --- | --- | --- | --- |
+| Gateway VM dies | VIP moves in about 2 s | **0.52 to 0.72 s** worst request gap (22 runs) | **1.00 s** (Nova hard reboot of the MASTER) |
+| Traefik crashes or hangs | about 4 s | **1.2 to 2.1 s** (SIGKILL, SIGTERM, 24 runs) | **1.36 s** (stopped); 1.32 s when systemd restarts it before a failover is needed |
+| keepalived stopped cleanly | immediate | **0.12 s** | — |
+| Manual failover through the control plane | under 1.5 s | **0.12 s** | **0.24 s** (API → agent `/fault` over mutual TLS) |
+| Old MASTER comes back | no second outage | **0 s**, no flap (nopreempt) | rejoined as BACKUP after its reboot, VIP stayed |
+| Both gateways claim MASTER (partition) | detected within seconds | alarm in about 5 s; one MASTER again after healing | — |
+| Control plane down | gateways keep serving | verified: config pipeline works with no control plane | — |
 
 *Method:* the lab runs real keepalived 2.4, Traefik 3.7 and `ipo-agent`, and sends 50 new TCP
 connections per second through the VIP; a "gap" is the longest stretch in which no request
@@ -107,7 +107,8 @@ The platform detects this rather than preventing it:
 
 ## Findings from the real FelCloud cloud
 
-Two things the first real `pulumi up` showed that no test could:
+What the real cloud showed that no test could (the full list of defects the first real deployment
+found is in [its report](../reports/real-deployment.md#defects-found-and-fixed)):
 
 - **Hard anti-affinity failed.** The four VMs in `anti-affinity` server groups went to `ERROR`
   while the two without a group booted, which fits a single compute host in TN-Carthage. The
@@ -119,16 +120,20 @@ Two things the first real `pulumi up` showed that no test could:
   works. Attaching a floating IP to the device-less VIP port then needs that port's subnet to be
   on a router with an external gateway already, so the association waits for the router
   interface. With both in place the floating IP attaches to `vip-edge` and goes `ACTIVE`.
-  Whether traffic then reaches whichever gateway holds the VIP is **not yet tested** (it needs the
-  gateways configured).
+  With the gateways configured, traffic from the internet reaches whichever gateway holds the
+  VIP, and keeps doing so across a failover: Neutron learns the move from keepalived's gratuitous
+  ARPs (measured above; [the real deployment](../reports/real-deployment.md)).
+- **Routers do not SNAT.** A VM without a floating IP has no route out. The bastion, which has one,
+  runs the platform's allow-listed egress proxy.
+- **The management network has no path to the VIP.** The control plane therefore checks a new
+  team through the gateways' agents (`POST /probe`), not through the VIP.
 
 ## Known limits and risks
 
 | Risk | Status |
 | --- | --- |
-| VRRP between two real OpenStack VMs is **untested**: the lab uses Linux bridges. Neutron must deliver VIP traffic (arriving through the floating IP) to whichever port lists it as an allowed address pair and learn the move from the gratuitous ARPs. The floating IP itself does attach to the VIP port. | needs the Ansible roles run on the built VMs |
+| VRRP between two real OpenStack VMs: verified for a VM power loss, Traefik down and a planned failover; a compute-host failure was not tested | see the next row |
 | One compute host would defeat the gateway pair (soft anti-affinity) | ask FelCloud; documented |
 | PostgreSQL promotion is manual; there is no automatic fencing beyond the playbook stopping the old primary | accepted for the challenge; runbook exists |
 | step-ca and observability are single instances | accepted; 24 h certificate window |
-| Agents log in to the API with an operator account; a compromised gateway would hold operator rights | a narrower `gateway` role would close it |
 | Instance quota (50) caps sandboxes at about 44 | documented; ask for more before a load test |
