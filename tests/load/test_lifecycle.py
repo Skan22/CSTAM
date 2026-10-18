@@ -13,6 +13,7 @@ from typing import Any
 from chaos.world import World
 from lab.stack import EDGE_CLIENT, wait_for
 from load.burst import Registrar, fetch_through
+from load.test_burst import settle
 
 TEAMS = int(os.environ.get("IPO_LIFECYCLE_TEAMS", "10"))
 QUARANTINE = 5
@@ -27,6 +28,9 @@ def test_expired_teams_disappear_from_every_layer_and_their_addresses_return(
 ) -> None:
     w = world
     w.cp.api("PATCH", "/v1/settings", {"pool_target": 0, "quarantine_seconds": QUARANTINE})
+    # the last test's warm VMs must be gone first: an address they free during this test would be
+    # lower than the expired ones and taken first, so the reuse check would see fresh addresses
+    settle(w, 0)
     fetch = fetch_through(w.vip, EDGE_CLIENT)
     reg = Registrar(w.cp.api, fetch, w.plat["domain"])
     burst = reg.run(TEAMS, "exp")
