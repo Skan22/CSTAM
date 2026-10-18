@@ -33,6 +33,13 @@ def group_addresses(spec: dict[str, Any], platform: dict[str, Any], group: str,
     The sandbox pool is a range; the gateways' edge side includes the VIP they share."""
     hosts = platform["network"]["hosts"]
     out: list[str] = []
+    if group in spec.get("ephemeral", []):
+        # No fixed address (the image builder): the host firewall can only name the subnet it
+        # lives on. The cloud's security group still admits exactly that group's ports.
+        cidrs = {"edge": platform["network"]["edge_cidr"], "mgmt": platform["network"]["mgmt_cidr"],
+                 "sandbox": platform["ip_pool"]["cidr"]}
+        nets = sorted({r["network"] for r in spec["groups"][group]["ingress"]})
+        return [cidrs[n] for n in nets if net in (None, n)]
     for h in spec["members"].get(group, []):
         out += [a for n, a in hosts[h].items() if net in (None, n)]
     if group == "sg-gateway" and net in (None, "edge"):

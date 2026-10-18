@@ -38,7 +38,7 @@ Notify=healthy
 
 [Service]
 Restart=always
-TimeoutStartSec=180
+TimeoutStartSec=600
 
 [Install]
 WantedBy=default.target

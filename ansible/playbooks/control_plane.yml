@@ -2,6 +2,7 @@
 - name: Control plane
   hosts: control_plane
   become: true
+  environment: "{{ ipo_proxy_env }}"
   # cp-1 first: it runs the CA and the Postgres primary the replica copies.
   order: sorted
   serial: 1
@@ -14,5 +15,7 @@
 - name: Observability
   hosts: "{{ ipo_observability_host | default('cp-2') }}"
   become: true
+  environment: "{{ ipo_proxy_env }}"
+  tags: [observability]
   roles:
     - observability

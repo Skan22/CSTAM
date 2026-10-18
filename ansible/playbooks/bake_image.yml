@@ -27,6 +27,8 @@
 - name: Harden and clean the image
   hosts: builder
   become: true
+  gather_facts: false  # the VM is still booting: wait for SSH first (pre_tasks), then gather
+  environment: "{{ ipo_proxy_env }}"
   vars:
     # A sandbox's own firewall mirrors sg-sandbox; the cloud's security group is what isolates it.
     hardening_group: sg-sandbox
@@ -35,6 +37,9 @@
     - name: Wait for SSH
       ansible.builtin.wait_for_connection:
         timeout: 300
+
+    - name: Gather facts now that it answers
+      ansible.builtin.setup:
   roles:
     - common
     - hardening
@@ -57,6 +62,16 @@
       ansible.builtin.command:
         argv: [openstack, server, stop, "{{ builder }}"]
       changed_when: true
+
+    # `server stop` returns at once, and Nova refuses to snapshot a VM still powering down (409).
+    - name: Wait until it is off
+      ansible.builtin.command:
+        argv: [openstack, server, show, -f, value, -c, status, "{{ builder }}"]
+      register: bake_status
+      until: bake_status.stdout | trim == 'SHUTOFF'
+      retries: 60
+      delay: 5
+      changed_when: false
 
     - name: Snapshot it as the next sandbox image
       ansible.builtin.command:

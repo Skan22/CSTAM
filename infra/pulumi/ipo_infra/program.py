@@ -219,15 +219,24 @@ class Built:
 
 def build(platform: dict[str, Any], groups: dict[str, Any], *, key_pair: str, prefix: str = "",
           public_key: str = "", floating_ips: bool = True,
-          affinity: str = "soft-anti-affinity") -> Built:
+          affinity: str = "soft-anti-affinity", bootstrap_ssh_from: str = "") -> Built:
     """`public_key`, when given, is uploaded as the Nova key pair named `key_pair`; otherwise the
     key pair must already exist in the project. Without `floating_ips` (the external network has
     no free address, say) the platform is built without its two public addresses. `affinity` is the
     policy of the gateway and control-plane server groups: `anti-affinity` refuses to boot a VM
     when no other host is free (FelCloud's project failed that way, so soft is the default),
-    `soft-anti-affinity` separates them when it can."""
+    `soft-anti-affinity` separates them when it can. `bootstrap_ssh_from` (an address range, for
+    example `203.0.113.7/32`) opens SSH to the bastion from there, for the first Ansible run: the
+    bastion's own WireGuard is configured by that run, so nothing else can reach it before. Leave it
+    empty, and re-run, once WireGuard works."""
     nets = Networks("networks", platform, prefix)
     sgs = SecurityGroups("security-groups", groups, platform, prefix)
+    if bootstrap_ssh_from:
+        openstack.networking.SecGroupRule(
+            f"{prefix}sg-bastion.mgmt-bootstrap-ssh", direction="ingress", ethertype="IPv4",
+            protocol="tcp", port_range_min=22, port_range_max=22,
+            remote_ip_prefix=bootstrap_ssh_from, security_group_id=sgs.groups["sg-bastion.mgmt"].id,
+            description="temporary: SSH for the first Ansible run, before WireGuard exists")
     key: pulumi.Input[str] = key_pair
     if public_key:
         key = openstack.compute.Keypair(f"{prefix}{key_pair}", name=f"{prefix}{key_pair}",

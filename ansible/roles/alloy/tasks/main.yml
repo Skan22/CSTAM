@@ -31,7 +31,7 @@
 
 - name: Install Alloy
   ansible.builtin.apt:
-    name: "alloy={{ alloy_version }}"
+    name: "alloy={{ alloy_version }}-*"  # the package carries a Debian revision (1.20.1-1)
     update_cache: true
 
 - name: Let Alloy read the journal

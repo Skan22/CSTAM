@@ -17,4 +17,6 @@ Entrypoint=/bin/sh
 Exec=/usr/local/bin/ipo-upload
 
 [Service]
+# A first start pulls the image (through the egress proxy on FelCloud) on a slow cloud disk.
+TimeoutStartSec=600
 Type=oneshot

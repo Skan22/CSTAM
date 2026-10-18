@@ -47,6 +47,7 @@ def keepalived_vars(plat: dict[str, Any], host: str, *, interface: str, bin_dir:
         "keepalived_vip": net["vip"],
         "keepalived_vip_prefix": net["edge_cidr"].split("/")[1],
         "keepalived_script_user": script_user,
+        "keepalived_state_group": "",  # the lab runs scripts as root: no group to name
         # keepalived's script-security check walks up to / and wants root owners; in a user
         # namespace the real root directory shows as nobody, so the lab cannot satisfy it.
         "keepalived_script_security": False,
@@ -62,7 +63,8 @@ def traefik_vars(*, web_port: int, api_address: str, access_log: Path, live: Pat
     return {
         "traefik_web_port": web_port, "traefik_websecure_port": 443,
         "traefik_api_address": api_address, "traefik_access_log": str(access_log),
-        "traefik_log_level": "INFO", "traefik_providers_throttle": "25ms", "traefik_live_config": str(live),
+        "traefik_log_level": "INFO", "traefik_providers_throttle": "25ms",
+        "traefik_backend_dial_timeout": "2s", "traefik_live_config": str(live),
         "traefik_acme_email": acme_email, "traefik_acme_storage": "/var/lib/traefik/acme.json",
     }
 

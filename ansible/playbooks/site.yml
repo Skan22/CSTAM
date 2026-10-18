@@ -1,13 +1,28 @@
 ---
 # Fresh Pulumi VMs to a running platform; safe to run again (a second run changes nothing).
 #   ansible-playbook playbooks/site.yml -e @secrets.yaml
-- name: Baseline every platform host
-  hosts: gateways:control_plane:relays:bastions
+# The bastion goes first: every other host is reached through it (`-e ipo_jump=debian@<its floating
+# IP>`), and its host firewall closes SSH to everything but WireGuard, so the first run keeps it
+# open for one address range (`-e bootstrap_ssh_from=<your address>/32`, with Pulumi's
+# `ipo:bootstrapSshFrom`) until WireGuard is up. See docs/guides/deployment.md.
+- name: Bastion first
+  hosts: bastions
   become: true
+  environment: "{{ ipo_proxy_env }}"
   roles:
     - common
     - hardening
-    - alloy
+    - bastion
+
+- name: Baseline every platform host
+  hosts: gateways:control_plane:relays:bastions
+  become: true
+  environment: "{{ ipo_proxy_env }}"
+  roles:
+    - common
+    - hardening
+    - role: alloy
+      tags: [observability]
 
 - name: Control plane, the CA and the observability stack
   ansible.builtin.import_playbook: control_plane.yml
@@ -18,11 +33,6 @@
 - name: Relay
   hosts: relays
   become: true
+  environment: "{{ ipo_proxy_env }}"
   roles:
     - relay
-
-- name: Bastion
-  hosts: bastions
-  become: true
-  roles:
-    - bastion

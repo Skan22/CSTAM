@@ -10,6 +10,7 @@
     - {path: .config/ipo/web, mode: "0755"}
     - {path: .config/openstack, mode: "0700"}
     - {path: .local/share/ipo/dashboard, mode: "0755"}
+    - {path: build, mode: "0755"}
 
 - name: Give the control plane platform.yaml
   ansible.builtin.copy:
@@ -27,9 +28,10 @@
     owner: "{{ ipo_service_user }}"
     group: "{{ ipo_service_user }}"
     mode: "0600"
-  loop:
-    - {src: control-plane.env.j2, dest: .config/ipo/control-plane.env}
-    - {src: clouds.yaml.j2, dest: .config/openstack/clouds.yaml}
+  loop: >-
+    {{ [{'src': 'control-plane.env.j2', 'dest': '.config/ipo/control-plane.env'}]
+       + ([{'src': 'clouds.yaml.j2', 'dest': '.config/openstack/clouds.yaml'}]
+          if control_plane_cloud == 'openstack' else []) }}
   loop_control:
     label: "{{ item.dest }}"
   notify: Restart the control plane
@@ -50,6 +52,74 @@
     - {name: ipo-users, value: "{{ lookup('ansible.builtin.template', 'users.json.j2') }}"}
   loop_control:
     label: "{{ item.name }}"
+
+- name: Build the control-plane image on this host
+  when: control_plane_build_on_host | bool
+  notify: Restart the control plane
+  block:
+    - name: Pack the build context where Ansible runs
+      ansible.builtin.command:
+        argv: [tar, czf, /tmp/ipo-control-plane-context.tgz, -C, "{{ ipo_repo_root }}",
+               control-plane/Containerfile, control-plane/pyproject.toml, control-plane/uv.lock,
+               control-plane/ipo, platform.schema.json]
+      delegate_to: localhost
+      become: false
+      run_once: true
+      changed_when: false
+      check_mode: false
+
+    - name: Unpack it on the host
+      ansible.builtin.unarchive:
+        src: /tmp/ipo-control-plane-context.tgz
+        dest: "{{ control_plane_home }}/build/"
+        owner: "{{ ipo_service_user }}"
+        group: "{{ ipo_service_user }}"
+      register: control_plane_context
+
+    - name: Look for the image
+      ansible.builtin.command:
+        argv: [podman, image, exists, "{{ control_plane_image }}"]
+      register: control_plane_image_present
+      changed_when: false
+      failed_when: false
+      become: true
+      become_user: "{{ ipo_service_user }}"
+
+    - name: Build the image when the source changed, or when it is missing
+      ansible.builtin.command:
+        argv: >-
+          {{ ['podman', 'build', '-f', 'control-plane/Containerfile', '-t', control_plane_image]
+             + (['--build-arg', 'HTTP_PROXY=' ~ ipo_egress_proxy,
+                 '--build-arg', 'HTTPS_PROXY=' ~ ipo_egress_proxy] if ipo_egress_proxy else [])
+             + ['.'] }}
+        chdir: "{{ control_plane_home }}/build"
+      when: control_plane_context is changed or control_plane_image_present.rc != 0
+      changed_when: true
+      become: true
+      become_user: "{{ ipo_service_user }}"
+
+- name: Pull the control-plane image ahead of its first start
+  ansible.builtin.command:
+    argv: [podman, pull, "{{ control_plane_image }}"]
+  when: not control_plane_build_on_host | bool
+  register: control_plane_pull
+  changed_when: "'Writing manifest' in control_plane_pull.stderr"
+  become: true
+  become_user: "{{ ipo_service_user }}"
+
+# UserNS=keep-id makes rootless Podman write a re-owned copy of the whole image the first time it
+# runs it (storage-chown-by-maps): minutes on a cloud disk, holding the storage lock that every
+# other container on the host is waiting for. Done here, once, with no unit timeout running; the
+# service then starts at once (found on the first real deploy, where it looped on its timeout).
+- name: Prepare the image for its user namespace before the service starts
+  ansible.builtin.command:
+    argv: [podman, run, --rm, "--userns=keep-id:uid=10001,gid=10001", --entrypoint, "true",
+           "{{ control_plane_image }}"]
+  changed_when: false
+  async: 1800
+  poll: 10
+  become: true
+  become_user: "{{ ipo_service_user }}"
 
 - name: Publish the dashboard
   ansible.builtin.copy:

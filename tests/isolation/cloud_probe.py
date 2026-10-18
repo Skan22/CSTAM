@@ -139,6 +139,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cloud", default="")
     ap.add_argument("--timeout", type=float, default=600)
     ap.add_argument("--out", type=Path, help="write the verdicts as JSON")
+    ap.add_argument("--pool-end", action="store_true",
+                    help="use the last pool addresses (a deployment holds the first ones)")
     args = ap.parse_args(argv)
 
     import openstack
@@ -152,16 +154,20 @@ def main(argv: list[str] | None = None) -> int:
     net = conn.network.find_network("sandbox-net", ignore_missing=False)
     flavor = conn.compute.find_flavor(platform["flavors"]["sandbox"], ignore_missing=False)
     image = conn.image.find_image(IMAGE, ignore_missing=False)
-    first = ipaddress.IPv4Address(platform["ip_pool"]["first"])
+    # The first pool addresses by default; --pool-end takes the last ones instead, so the probes run
+    # beside a deployment whose sandboxes hold the first addresses.
+    pool = platform["ip_pool"]
+    first = ipaddress.IPv4Address(pool["last"]) - 4 if args.pool_end else ipaddress.IPv4Address(pool["first"])
+    moved = {nodes["sbx-a"].addrs["sandbox"]: str(first), nodes["sbx-b"].addrs["sandbox"]: str(first + 1)}
     victim = str(first + 3)
     plan = {  # name -> (security group, address, probing as)
-        "sbx-a": ("sg-sandbox.sandbox", nodes["sbx-a"].addrs["sandbox"], "sbx-a"),
-        "sbx-b": ("sg-sandbox.sandbox", nodes["sbx-b"].addrs["sandbox"], None),
+        "sbx-a": ("sg-sandbox.sandbox", str(first), "sbx-a"),
+        "sbx-b": ("sg-sandbox.sandbox", str(first + 1), None),
         "gw": ("sg-gateway.sandbox", str(first + 2), "gw-a"),
         # a relay's group, with a listener: the one thing a sandbox may send to (UDP 5140)
         "victim": ("sg-relay.sandbox", victim, "listener"),
     }
-    forged = [victim, nodes["sbx-b"].addrs["sandbox"], str(first + 60),
+    forged = [victim, str(first + 1), str(ipaddress.IPv4Address(pool["first"]) + 60),
               platform["network"]["hosts"]["gw-a"]["sandbox"]]  # to, neighbour, unused, gateway
     created: list[tuple[str, str]] = []  # (kind, id), see cleanup()
     servers: dict[str, Any] = {}
@@ -191,7 +197,8 @@ def main(argv: list[str] | None = None) -> int:
             if as_node == "listener":
                 data = listener_data()
             elif as_node:
-                probes = model.probes_from(platform, spec, as_node)
+                probes = [dataclasses.replace(p, addr=moved.get(p.addr, p.addr))
+                          for p in model.probes_from(platform, spec, as_node)]
                 if as_node == "gw-a":  # only what a gateway shares a segment with: the sandboxes
                     probes = [p for p in probes if p.net == "sandbox" and p.dst in ("sbx-a", "sbx-b")]
                 if as_node == "sbx-a":  # addresses nobody owns: whatever answers there is a router

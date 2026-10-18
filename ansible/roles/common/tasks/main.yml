@@ -1,4 +1,24 @@
 ---
+- name: Send apt through the egress proxy (FelCloud's routers do not SNAT)
+  ansible.builtin.copy:
+    content: |
+      // Managed by Ansible (role common).
+      Acquire::http::Proxy "{{ ipo_egress_proxy }}";
+      Acquire::https::Proxy "{{ ipo_egress_proxy }}";
+    dest: /etc/apt/apt.conf.d/90-ipo-proxy
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_facts['os_family'] == 'Debian' and ipo_egress_proxy | length > 0
+
+- name: Refresh the package index (a fresh image has none)
+  # Always: an index fetched while the network was not yet usable is empty but looks fresh, and then
+  # apt "knows" no package at all. Refreshing it is not a change to the host.
+  ansible.builtin.apt:
+    update_cache: true
+  changed_when: false
+  when: ansible_facts['os_family'] == 'Debian'
+
 - name: Install the base packages
   ansible.builtin.package:
     name: "{{ common_packages }}"
@@ -36,6 +56,14 @@
     mode: "0644"
   notify: Restart journald
 
+- name: Create the group that may read this host's key (roles/step_ca fills the directory)
+  ansible.builtin.group:
+    name: "{{ common_pki_group }}"
+    system: true
+
+# In the key's group from the start: the user's systemd manager, and every rootless container it
+# runs, keeps the groups the user had when lingering started it, and restarting a manager with
+# containers running wedges them (both found on the first real deploy).
 - name: Create the service user that runs the containers
   ansible.builtin.user:
     name: "{{ common_service_user }}"
@@ -43,6 +71,8 @@
     home: "{{ common_service_home }}"
     create_home: true
     shell: /usr/sbin/nologin
+    groups: ["{{ common_pki_group }}"]
+    append: true
 
 - name: Create operator accounts
   ansible.builtin.user:

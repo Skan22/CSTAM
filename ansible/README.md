@@ -44,6 +44,8 @@ Grafana behind the real Caddy front (embedding, cookies, provisioned panels). Th
 (`tests/isolation`) loads the `hardening` and `gateway_network` output into its namespaces.
 `ansible-lint` passes on the production profile and every playbook passes `--syntax-check`.
 
-Not run here: the playbooks against real hosts (no OpenStack, Podman or Molecule were available),
-`podman auto-update` rollbacks, step-ca enrollment end to end, Postgres replication between two
-hosts, WireGuard. The plan's Molecule scenarios are not written for the same reason.
+**Run on real hosts:** every playbook except the observability tag was run on six FelCloud VMs
+(2026-10-18), including step-ca enrollment, Postgres primary and replica, the bastion's egress
+proxy and the image bake ([report](../docs/reports/real-deployment.md), with the 21 defects it
+found). Not run: `podman auto-update` rollbacks, WireGuard with a real peer, the observability stack
+on real hosts. The plan's Molecule scenarios are not written.

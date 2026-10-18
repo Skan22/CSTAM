@@ -50,6 +50,17 @@
   loop: "{{ podman_timers }}"
   register: podman_installed_timers
 
+- name: Forget a failed start from an earlier run, so a fixed unit is not held by the start limit
+  ansible.builtin.command:
+    argv: "{{ ['systemctl', '--user', 'reset-failed'] + podman_start }}"
+  when: podman_start | length > 0
+  changed_when: false
+  failed_when: false
+  become: true
+  become_user: "{{ podman_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][podman_user][1] }}"
+
 - name: Start the services, restarting them when anything they read changed
   ansible.builtin.systemd_service:
     name: "{{ item }}"

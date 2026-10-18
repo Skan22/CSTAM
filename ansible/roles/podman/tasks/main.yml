@@ -4,6 +4,32 @@
     name: "{{ podman_packages[ansible_facts['os_family']] | default(podman_packages['Debian']) }}"
     state: present
 
+- name: Make room for Podman's configuration drop-ins
+  ansible.builtin.file:
+    path: /etc/containers/containers.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: ipo_egress_proxy | length > 0
+
+- name: Pull images through the egress proxy, without handing it to the containers
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (role podman). FelCloud's routers do not SNAT: Podman itself reaches the
+      # registries through the bastion's proxy. Containers do not inherit it (http_proxy = false):
+      # the control plane must talk to the agents directly.
+      [containers]
+      http_proxy = false
+
+      [engine]
+      env = ["HTTP_PROXY={{ ipo_egress_proxy }}", "HTTPS_PROXY={{ ipo_egress_proxy }}", "NO_PROXY={{ ipo_no_proxy }}"]
+    dest: /etc/containers/containers.conf.d/90-ipo-proxy.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: ipo_egress_proxy | length > 0
+
 - name: Read the Podman version
   ansible.builtin.command: podman version --format "{{ '{{' }}.Client.Version{{ '}}' }}"
   register: podman_version

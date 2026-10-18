@@ -10,7 +10,14 @@ control_plane_database_url: >-
 control_plane_migrate: "{{ inventory_hostname == ipo_db_primary }}"
 control_plane_gateways: "{{ groups.get('gateways', ['gw-a', 'gw-b']) }}"
 control_plane_workers: 48
+# `openstack` boots real sandboxes with the credential below. `fake` keeps the whole control plane
+# real (API, sagas, compiler, pool, gateways, DNS) but creates no VMs, and needs no cloud credential
+# on the host: for trying the platform out, or when the credential may not leave your hands.
+control_plane_cloud: openstack
 control_plane_os_cloud: felcloud
+# Without a registry to pull from, build the image on the host from this repository (the base images
+# and the Python packages come from docker.io and PyPI).
+control_plane_build_on_host: false
 # Team names: `wildcard` assumes *.<domain> already points at the floating IP (FelCloud has no DNS
 # service, so this is the default and needs no per-team record). `rfc2136` publishes one A record
 # per team with signed dynamic updates; it needs the server, the address the records point at

@@ -6,3 +6,18 @@ bastion_wg_port: 51820
 bastion_peers: []
 bastion_mgmt_interface: >-
   {{ ansible_facts | ipo_iface_for(ipo_platform.network.hosts[inventory_hostname].mgmt) }}
+
+# The egress proxy (FelCloud's routers do not SNAT; see templates/tinyproxy.conf.j2).
+bastion_proxy_port: 3128
+bastion_proxy_clients: ["{{ ipo_platform.network.mgmt_cidr }}"]
+# Hostnames, as extended regular expressions, that platform hosts may reach. Everything else is
+# refused: a compromised host cannot use the bastion to talk to the internet at large.
+bastion_proxy_allow:
+  - '^(deb|security)\.debian\.org$'
+  - '^apt\.grafana\.com$'
+  - '^(registry-1\.docker\.io|auth\.docker\.io|production\.cloud(flare|front)\.docker\.com)$'
+  - '^(docker-images-prod\.[a-z0-9]+\.r2\.cloudflarestorage\.com)$'
+  - '^(ghcr\.io|pkg-containers\.githubusercontent\.com)$'
+  - '^(quay\.io|cdn[0-9]*\.quay\.io|quayio-production-s3\.s3[a-z0-9.-]*\.amazonaws\.com)$'
+  - '^(github\.com|objects\.githubusercontent\.com|release-assets\.githubusercontent\.com)$'
+  - '^(pypi\.org|files\.pythonhosted\.org)$'

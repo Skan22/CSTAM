@@ -51,9 +51,12 @@ class CloudConfig:
     def config_flags(self) -> list[str]:
         """Stack config passed on the command line, so no value lands in the repository."""
         pub = (self.state_dir / "ssh_ed25519.pub").read_text().strip()
-        return ["--config", f"ipo:publicKey={pub}",
-                "--config", f"ipo:floatingIps={'true' if self.floating_ips else 'false'}",
-                "--config", "ipo:antiAffinity=soft-anti-affinity"]
+        flags = ["--config", f"ipo:publicKey={pub}",
+                 "--config", f"ipo:floatingIps={'true' if self.floating_ips else 'false'}",
+                 "--config", "ipo:antiAffinity=soft-anti-affinity"]
+        if os.environ.get("IPO_BOOTSTRAP_SSH_FROM"):  # SSH to the bastion for the first Ansible run
+            flags += ["--config", f"ipo:bootstrapSshFrom={os.environ['IPO_BOOTSTRAP_SSH_FROM']}"]
+        return flags
 
     def prepare(self) -> dict[str, str]:
         """Create the state directory, passphrase and SSH key once; return Pulumi's environment."""

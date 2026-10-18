@@ -1,0 +1,23 @@
+# Managed by Ansible (role bastion). The platform's only way out: FelCloud's routers do not SNAT,
+# so hosts without a floating IP reach package mirrors and image registries through here, and only
+# those (FilterDefaultDeny with the allow-list in egress-allow).
+User tinyproxy
+Group tinyproxy
+Port {{ bastion_proxy_port }}
+Listen {{ ipo_mgmt_ip }}
+Timeout 600
+DefaultErrorFile "/usr/share/tinyproxy/default.html"
+StatFile "/usr/share/tinyproxy/stats.html"
+LogLevel Notice
+Syslog On
+MaxClients 100
+{% for cidr in bastion_proxy_clients %}
+Allow {{ cidr }}
+{% endfor %}
+ViaProxyName "ipo-egress"
+DisableViaHeader Yes
+Filter "/etc/tinyproxy/egress-allow"
+FilterType ere
+FilterDefaultDeny Yes
+FilterCaseSensitive No
+ConnectPort 443

@@ -168,3 +168,24 @@ def test_a_floating_ip_is_attached_only_after_its_subnet_is_routed(monkeypatch: 
     for name, net in (("order-fip-public-vip", "edge"), ("order-fip-bastion-port", "mgmt")):
         waits = seen[name].depends_on
         assert built.nets.router_interfaces[net] in list(waits), name
+
+
+def test_ssh_to_the_bastion_is_opened_only_to_the_range_asked_for_and_passes_the_policy() -> None:
+    before = len(MOCKS.resources)
+    built = program.build(PLATFORM, GROUPS, key_pair="ipo-ops", prefix="boot-", floating_ips=False,
+                          bootstrap_ssh_from="203.0.113.7/32")
+
+    @pulumi.runtime.test  # type: ignore[untyped-decorator]
+    def wait() -> pulumi.Output[Any]:
+        return pulumi.Output.all(built.outputs()["port_ids"], built.outputs()["security_groups"])
+
+    wait()
+    rules_made = [(name, i) for typ, name, i in MOCKS.resources[before:]
+                  if typ.endswith(":SecGroupRule") and name.endswith("bootstrap-ssh")]
+    assert len(rules_made) == 1
+    [(name, inputs)] = rules_made
+    assert inputs["remoteIpPrefix"] == "203.0.113.7/32" and inputs["portRangeMin"] == 22
+    assert not [msg for check, _ in checks.ALL.values()
+                if (msg := check(":SecGroupRule", name, inputs))]
+    # and by default nothing of the kind exists
+    assert not any(name.endswith("bootstrap-ssh") for _, name, _ in MOCKS.resources[:before])

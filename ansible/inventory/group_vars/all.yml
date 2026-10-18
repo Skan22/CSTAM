@@ -1,7 +1,9 @@
 ---
 # platform.yaml and security-groups.yaml are the single sources of truth for every layer.
 # Secrets are not here: pass the SOPS-decrypted file with `-e @secrets.yaml` (see README.md).
-ipo_repo_root: "{{ inventory_dir }}/../.."
+# The implicit localhost and add_host hosts (bake_image.yml) have no inventory_dir; every playbook
+# lives in playbooks/.
+ipo_repo_root: "{{ inventory_dir | default(playbook_dir ~ '/../inventory', true) }}/../.."
 ipo_stack: dev
 ipo_platform: "{{ lookup('ansible.builtin.file', ipo_repo_root ~ '/platform.yaml') | from_yaml }}"
 ipo_security_groups: >-
@@ -24,3 +26,34 @@ ipo_observability_ip: "{{ ipo_platform.network.hosts[ipo_observability_host].mgm
 # The Postgres primary; promote_replica.yml switches it.
 ipo_db_primary: cp-1
 ipo_pki_dir: /etc/ipo/pki
+
+# How Ansible reaches the hosts: as the image's default user, and (set `ipo_jump` to
+# `debian@<the bastion's floating IP>`) through the bastion, which is the only host with an address
+# outside the cloud (a ProxyCommand rather than ProxyJump, so the private key given with
+# `ansible_ssh_private_key_file` is also used for the first hop). Without it the hosts are reached directly, from inside mgmt-net or over
+# WireGuard.
+ansible_user: "{{ ipo_ssh_user | default('debian') }}"
+ipo_jump: ""
+ansible_ssh_common_args: >-
+  {{ ('-o ProxyCommand="ssh '
+      ~ (('-i ' ~ ansible_ssh_private_key_file ~ ' ') if ansible_ssh_private_key_file is defined else '')
+      ~ '-o StrictHostKeyChecking=accept-new -W %h:%p ' ~ ipo_jump ~ '" -o StrictHostKeyChecking=accept-new')
+     if ipo_jump and inventory_hostname != 'bastion' else '-o StrictHostKeyChecking=accept-new' }}
+
+# FelCloud's routers do not SNAT, so hosts without a floating IP reach package mirrors and image
+# registries only through the bastion's allow-listed proxy (roles/bastion). The bastion itself has a
+# floating IP and goes direct. Set ipo_egress_proxy to "" on a cloud whose routers do SNAT.
+ipo_egress_proxy: >-
+  {{ '' if inventory_hostname in groups.get('bastions', ['bastion'])
+     else 'http://' ~ ipo_platform.network.hosts.bastion.mgmt ~ ':3128' }}
+# Python's urllib (Ansible's uri and get_url) matches no_proxy by name, not by network, so every
+# platform address is listed; Go and curl also accept the networks.
+ipo_no_proxy: >-
+  {{ (['localhost', '127.0.0.1', '.' ~ ipo_platform.domain, ipo_platform.network.vip,
+       ipo_platform.network.edge_cidr, ipo_platform.network.mgmt_cidr, ipo_platform.ip_pool.cidr]
+      + (ipo_platform.network.hosts.values() | map('dict2items') | flatten | map(attribute='value') | list))
+     | unique | join(',') }}
+ipo_proxy_env: >-
+  {{ {'http_proxy': ipo_egress_proxy, 'https_proxy': ipo_egress_proxy, 'HTTP_PROXY': ipo_egress_proxy,
+      'HTTPS_PROXY': ipo_egress_proxy, 'no_proxy': ipo_no_proxy, 'NO_PROXY': ipo_no_proxy}
+     if ipo_egress_proxy else {} }}

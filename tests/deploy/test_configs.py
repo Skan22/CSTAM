@@ -93,8 +93,13 @@ def test_keepalived_accepts_its_config(host: str, tmp_path: Path) -> None:
         shutil.copy(render.ROLES / "keepalived" / "files" / f, bin_dir / f)
     state = tmp_path / "run"  # what the role's tmpfiles entry creates at boot, before keepalived
     state.mkdir()
+    # As deployed, scripts run with the state file's group as their primary group: keepalived drops
+    # supplementary groups, and the notify hook could not write the state through one.
+    deployed = render.render("keepalived", "keepalived.conf.j2", **hostvars(host, "keepalived"))
+    assert "script_user keepalived_script ipo-vrrp" in deployed
     v = hostvars(host, "keepalived", keepalived_bin_dir=str(bin_dir), keepalived_script_security=False,
-                 keepalived_script_user="root", keepalived_state_file=str(state / "vrrp_state"),
+                 keepalived_script_user="root", keepalived_state_group="root",
+                 keepalived_state_file=str(state / "vrrp_state"),
                  keepalived_fault_file=str(state / "fault"))
     text = render.render("keepalived", "keepalived.conf.j2", **v)
     assert f"priority {150 if host == 'gw-a' else 100}" in text
@@ -255,6 +260,19 @@ def test_postgres_starts_on_the_rendered_config_and_the_bootstrap_is_repeatable(
         who = run([str(psql), "-h", "127.0.0.1", "-p", str(port), "-U", "ipo", "-d", "ipo", "-tAc",
                    "SELECT current_user"], env={**os.environ, "PGPASSWORD": awkward}).stdout.strip()
         assert who == "ipo"
+        # The control plane migrates as this login, not as the superuser: every migration must
+        # run with only what the bootstrap gave it (the first real deploy failed on CREATE ROLE).
+        from urllib.parse import quote
+        dsn = f"postgresql://ipo:{quote(awkward)}@127.0.0.1:{port}/ipo"
+        cp = render.REPO / "control-plane"
+        out = subprocess.run([str(cp / ".venv" / "bin" / "python"), "-c",
+                              "import sys; from ipo.db.migrate import upgrade; upgrade(sys.argv[1])",
+                              dsn], cwd=cp, capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr[-2000:]
+        tables = run([str(psql), "-h", "127.0.0.1", "-p", str(port), "-U", "ipo", "-d", "ipo", "-tAc",
+                      "SELECT count(*) FROM pg_tables WHERE schemaname = 'public'"],
+                     env={**os.environ, "PGPASSWORD": awkward}).stdout.strip()
+        assert int(tables) >= 10
     finally:
         subprocess.run([str(pg_ctl), "-D", str(data), "-m", "immediate", "stop"], capture_output=True)
 

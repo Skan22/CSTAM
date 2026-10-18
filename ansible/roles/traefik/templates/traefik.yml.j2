@@ -53,6 +53,15 @@ certificatesResolvers:
         entryPoint: web
 {% endif %}
 
+# Team backends sit on the gateways' own segment, so a live one connects in milliseconds. One with
+# nothing behind its address yet (a sandbox still booting) does not refuse: the connection hangs
+# while ARP goes unanswered. Without a short dial timeout Traefik waits 30 s, and the agent's
+# probe, which must tell "route loaded, backend not up" (a 502) from "no route", times out first
+# (found on the first real deploy).
+serversTransport:
+  forwardingTimeouts:
+    dialTimeout: {{ traefik_backend_dial_timeout }}
+
 providers:
   # Traefik applies at most one provider change per this long (default 2s), which would stretch
   # every config version, and so every registration, by about that much.

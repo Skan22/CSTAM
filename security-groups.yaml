@@ -42,6 +42,12 @@ groups:
   sg-bastion:
     ingress:
       - {network: mgmt, from: internet, proto: udp, ports: [51820], why: "WireGuard"}
+      # FelCloud's routers do not SNAT: a VM without a floating IP has no route out. The bastion has
+      # one, so it is the platform's single egress, an allow-listed HTTP(S) proxy (roles/bastion).
+      - {network: mgmt, from: sg-control, proto: tcp, ports: [3128], why: "egress proxy: packages and images"}
+      - {network: mgmt, from: sg-gateway, proto: tcp, ports: [3128], why: "egress proxy: packages and images"}
+      - {network: mgmt, from: sg-relay, proto: tcp, ports: [3128], why: "egress proxy: packages and images"}
+      - {network: mgmt, from: sg-builder, proto: tcp, ports: [3128], why: "egress proxy: the image bake installs packages"}
   sg-builder:
     ingress:
       - {network: mgmt, from: sg-bastion, proto: tcp, ports: [22], why: "Ansible bakes the sandbox image"}

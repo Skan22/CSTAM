@@ -41,6 +41,31 @@
     enabled: true
     state: started
 
+- name: Install the egress proxy
+  ansible.builtin.package:
+    name: tinyproxy
+    state: present
+
+- name: Configure the egress proxy and its allow-list
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - {src: tinyproxy.conf.j2, dest: /etc/tinyproxy/tinyproxy.conf}
+    - {src: egress-allow.j2, dest: /etc/tinyproxy/egress-allow}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Restart the egress proxy
+
+- name: Run the egress proxy
+  ansible.builtin.systemd_service:
+    name: tinyproxy
+    enabled: true
+    state: started
+
 - name: Tell the operator what peers need
   ansible.builtin.debug:
     msg: >-

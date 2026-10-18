@@ -16,6 +16,10 @@ Secret=ipo-ca-password,target=/run/secrets/ca-password,mode=0400,uid=1000
 Environment=DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/ca-password
 NoNewPrivileges=true
 DropCapability=all
+# The image's step-ca binary carries the file capability cap_net_bind_service. A binary whose file
+# capabilities fall outside the bounding set cannot be executed at all (EPERM), so that one
+# capability stays, although the port it serves needs none (found on the first real deploy).
+AddCapability=NET_BIND_SERVICE
 HealthCmd=step ca health --ca-url https://127.0.0.1:9000 --root /home/step/certs/root_ca.crt
 HealthInterval=30s
 HealthRetries=3
@@ -23,6 +27,8 @@ HealthStartPeriod=60s
 Notify=healthy
 
 [Service]
+# A first start pulls the image (through the egress proxy on FelCloud) on a slow cloud disk.
+TimeoutStartSec=600
 Restart=always
 
 [Install]

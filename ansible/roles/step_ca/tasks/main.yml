@@ -61,6 +61,13 @@
            --fingerprint, "{{ step_ca_fingerprint.stdout | trim }}"]
     creates: "{{ step_ca_pki_dir }}/root_ca.crt"
 
+- name: Let the readers verify with the root (it is public; step writes it 0600)
+  ansible.builtin.file:
+    path: "{{ step_ca_pki_dir }}/root_ca.crt"
+    owner: root
+    group: "{{ step_ca_pki_group }}"
+    mode: "0644"
+
 - name: Trust the root system-wide (the agents' client verifies the control plane with it)
   ansible.builtin.copy:
     src: "{{ step_ca_pki_dir }}/root_ca.crt"

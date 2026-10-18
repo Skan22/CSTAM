@@ -2,6 +2,7 @@
 - name: Gateways, one at a time so the other keeps the VIP
   hosts: gateways
   become: true
+  environment: "{{ ipo_proxy_env }}"
   serial: 1
   roles:
     - podman

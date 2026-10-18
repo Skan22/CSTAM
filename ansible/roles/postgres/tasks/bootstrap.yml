@@ -12,7 +12,8 @@
 
 - name: Create the roles and the database (idempotent SQL; passwords are set every run)
   ansible.builtin.command:
-    argv: [podman, exec, -i, postgres, psql, -U, postgres, -f, "-"]
+    # As the OS user postgres: pg_hba.conf admits the superuser on the socket by peer only.
+    argv: [podman, exec, -i, --user, postgres, postgres, psql, -U, postgres, -f, "-"]
     stdin: "{{ lookup('ansible.builtin.template', 'bootstrap.sql.j2') }}"
   changed_when: false
   no_log: true

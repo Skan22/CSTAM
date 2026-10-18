@@ -7,6 +7,7 @@ traefik_api_address: "127.0.0.1:8080"
 traefik_access_log: /var/log/traefik/access.log
 traefik_log_level: INFO
 traefik_providers_throttle: 25ms
+traefik_backend_dial_timeout: 2s
 traefik_live_config: /var/lib/ipo-agent/live.yml
 traefik_static_config: /etc/traefik/traefik.yml
 # Set an address to terminate TLS at the gateway with ACME (HTTP-01 on the web entry point);

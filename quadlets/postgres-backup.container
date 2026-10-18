@@ -17,4 +17,6 @@ Environment=PGHOST=127.0.0.1 PGUSER=postgres PGDATABASE=ipo
 Exec=sh /usr/local/bin/ipo-backup
 
 [Service]
+# A first start pulls the image (through the egress proxy on FelCloud) on a slow cloud disk.
+TimeoutStartSec=600
 Type=oneshot

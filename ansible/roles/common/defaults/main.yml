@@ -9,3 +9,4 @@ common_journald_max_use: 500M
 common_journald_max_file: 50M
 # Exact versions to hold, e.g. {podman: "5.4.*"}; Debian only.
 common_package_pins: {}
+common_pki_group: ipo-pki  # roles/step_ca: may read /etc/ipo/pki/host.key

@@ -5,7 +5,10 @@ global_defs {
 {% if keepalived_script_security %}
     enable_script_security
 {% endif %}
-    script_user {{ keepalived_script_user }}
+    # The group matters: keepalived runs scripts with the user's primary group alone, so the
+    # notify hook could not write the state file through a supplementary group (found on the
+    # first real deploy; the lab's unprivileged namespace cannot drop groups, so it never showed).
+    script_user {{ keepalived_script_user }}{{ (' ' ~ keepalived_state_group) if keepalived_state_group else '' }}
 }
 
 # Traefik ping. No weight: failing the check puts the instance in FAULT, which releases the
