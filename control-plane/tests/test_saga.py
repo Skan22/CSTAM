@@ -229,3 +229,32 @@ def test_provision_duration_is_recorded_by_path(dsn: str, warm: bool) -> None:
     before = _sample("ipo_provision_duration_seconds_count", path=path)
     assert runner(env, gw, pr).run_once() == "succeeded"
     assert _sample("ipo_provision_duration_seconds_count", path=path) == before + 1
+
+
+def test_a_step_longer_than_the_stale_window_is_not_taken_over(dsn: str) -> None:
+    """The probe waits minutes for a booting sandbox. While it waits, its worker keeps the job;
+    before, a second worker found the lock stale and ran the same job alongside."""
+    import threading
+    import time as clock
+
+    env, reg, gw, pr = setup(dsn, warm=True)
+    started = threading.Event()
+
+    class SlowProber(FakeProber):
+        def probe(self, host: str, timeout: float) -> None:
+            started.set()
+            clock.sleep(4)  # well past the 1.5 s stale window below
+
+    _, _, connect = env
+    first = runner(env, gw, SlowProber(), stale_seconds=1.5)
+    second = runner(env, gw, pr, stale_seconds=1.5)
+    outcome: list[object] = []
+    t = threading.Thread(target=lambda: outcome.append(first.run_once()))
+    t.start()
+    assert started.wait(5)
+    clock.sleep(2)  # the lock would be stale by now without the keep-alive
+    assert second.run_once() is None  # nothing to take over
+    t.join(10)
+    assert outcome == ["succeeded"]
+    with connect() as c:
+        assert c.execute("SELECT attempts FROM jobs").fetchone() == (1,)

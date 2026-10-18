@@ -132,3 +132,14 @@ def test_a_malformed_users_file_stops_the_start(dsn: str, tmp_path: Path, conten
            "IPO_JWT_SECRET": "j" * 40, "IPO_USERS_FILE": str(users)}
     with pytest.raises(ValueError):
         build_runtime(env, cloud=FakeCloud(), signer=Signer.generate(), agents={})
+
+
+def test_registration_probes_through_the_agents_when_there_are_real_ones(dsn: str) -> None:
+    from ipo.adapters.prober import AgentProber, HttpProber
+
+    base = {"IPO_DATABASE_URL": dsn, "IPO_PLATFORM": str(PLATFORM), "IPO_CLOUD": "fake",
+            "IPO_JWT_SECRET": "j" * 40, "IPO_VIP": "10.0.0.100"}
+    real = build_runtime({**base, "IPO_AGENTS": "gw-a=http://127.0.0.1:1,gw-b=http://127.0.0.1:2"})
+    assert real.deps and isinstance(real.deps.prober, AgentProber)
+    lab = build_runtime({**base, "IPO_AGENTS": "gw-a=http://127.0.0.1:1", "IPO_PROBE": "vip"})
+    assert lab.deps and isinstance(lab.deps.prober, HttpProber)

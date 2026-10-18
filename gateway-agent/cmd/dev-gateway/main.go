@@ -68,7 +68,8 @@ func main() {
 	}
 	mon := vrrp.Monitor{StateFile: filepath.Join(*dir, "vrrp_state"), FaultFile: filepath.Join(*dir, "fault")}
 	_ = os.WriteFile(mon.StateFile, []byte("MASTER"), 0o644)
-	srv := &server.Server{Name: *name, Pipeline: pipe, VRRP: mon, Metrics: reg, Insecure: true, Started: time.Now()}
+	srv := &server.Server{Name: *name, Pipeline: pipe, VRRP: mon, Metrics: reg, Insecure: true, Started: time.Now(),
+		Prober: pipeline.HTTPProber{Base: tf.WebURL}}
 
 	ln, err := netListen(*listen)
 	if err != nil {

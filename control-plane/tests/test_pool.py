@@ -159,3 +159,21 @@ def test_the_pool_grows_to_the_recent_demand_and_shrinks_when_it_passes(dsn: str
     pool.reconcile(target=target)
     with connect() as c:
         assert leases.counts(c)["pooled"] == 2
+
+
+def test_a_restarted_fake_cloud_adopts_what_the_leases_record(dsn: str) -> None:
+    """The deployed fake keeps servers in memory; a restart must not forget the warm pool."""
+    from ipo.domain.registration import register_team
+
+    settings, cloud, connect = make_env(dsn, pooled=2)
+    reborn = FakeCloud()
+    with connect() as c:
+        for ip, port_id, server_id in c.execute(
+                "SELECT host(ip), port_id, server_id FROM leases WHERE server_id IS NOT NULL"):
+            reborn.adopt(ip=ip, port_id=port_id, server_id=server_id)
+        reg = register_team(c, settings, slug="alpha", owner="o", idempotency_key="k")
+        lease = leases.get(c, reg.ip)
+    assert lease.server_id in reborn.servers
+    reborn.set_server_metadata(lease.server_id, {"ipo.team": "t"})  # the step that failed
+    fresh = reborn.ensure_port(name="p-new", ip="10.20.0.99")
+    assert fresh.id not in {p for p in cloud.ports}  # new ids do not collide with adopted ones

@@ -124,7 +124,7 @@ func New(cfg Config) (*Pipeline, error) {
 		cfg.ConvergeTimeout = 10 * time.Second
 	}
 	if cfg.ProbeBudget == 0 {
-		cfg.ProbeBudget = 3 * time.Second
+		cfg.ProbeBudget = 5 * time.Second
 	}
 	p := &Pipeline{cfg: cfg}
 	if err := os.MkdirAll(cfg.Dir, 0o755); err != nil {
@@ -389,7 +389,7 @@ func (p *Pipeline) verify(ctx context.Context, next *policy.Config, attrs map[st
 	sort.Strings(probes)
 	end = tr.Start(ctx, "probe", map[string]any{"version": attrs["version"], "routes": probes})
 	for _, name := range probes {
-		if err = p.probe(ctx, next.Routers[name].Host); err != nil {
+		if err = p.probe(ctx, next.Routers[name].Host, name == CanaryRouter); err != nil {
 			err = fmt.Errorf("route %s: %w", name, err)
 			break
 		}
@@ -429,12 +429,17 @@ func (p *Pipeline) waitRouters(ctx context.Context, want []string) error {
 	}
 }
 
-func (p *Pipeline) probe(ctx context.Context, host string) error {
+// probe proves a route is loaded. For a team's route a backend that does not answer yet still
+// proves it (Traefik matched the host): a VM on a real cloud serves a minute after it boots, and
+// rolling the whole config back for it would also block every later change, since each would
+// carry that route again. The control plane waits for the backend itself (POST /probe). Only the
+// canary, which this agent serves, must answer: it proves Traefik forwards at all.
+func (p *Pipeline) probe(ctx context.Context, host string, strict bool) error {
 	ctx, cancel := context.WithTimeout(ctx, p.cfg.ProbeBudget)
 	defer cancel()
 	var err error
 	for {
-		if err = p.cfg.Prober.Probe(ctx, host); err == nil {
+		if err = p.cfg.Prober.Probe(ctx, host); err == nil || (!strict && errors.Is(err, ErrBackendDown)) {
 			return nil
 		}
 		select {
@@ -531,8 +536,12 @@ func (h HTTPTraefik) Routers(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-// HTTPProber requests Base with the given Host header. 404 (no such route) and 502/503/504
-// (dead backend) fail; anything else, including an application error, proves the route works.
+// ErrBackendDown is a probe that reached Traefik and matched a route, but the backend behind it
+// did not answer (502/503/504): the route is loaded; the team's VM is not serving (yet).
+var ErrBackendDown = errors.New("backend not answering")
+
+// HTTPProber requests Base with the given Host header. 404 (no such route) fails; 502/503/504 fail
+// with ErrBackendDown; anything else, including an application error, proves the route works.
 type HTTPProber struct {
 	Base   string
 	Client *http.Client
@@ -541,7 +550,9 @@ type HTTPProber struct {
 func (h HTTPProber) Probe(ctx context.Context, host string) error {
 	c := h.Client
 	if c == nil {
-		c = &http.Client{Timeout: time.Second}
+		// Longer than Traefik's backend dial timeout (2 s), so a backend that is not up yet comes
+		// back as Traefik's 502 rather than as this client giving up first.
+		c = &http.Client{Timeout: 4 * time.Second}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.Base, nil)
 	if err != nil {
@@ -555,8 +566,10 @@ func (h HTTPProber) Probe(ctx context.Context, host string) error {
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
 	switch resp.StatusCode {
-	case http.StatusNotFound, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
-		return fmt.Errorf("%s answered %d", host, resp.StatusCode)
+	case http.StatusNotFound:
+		return fmt.Errorf("%s answered 404: no route", host)
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return fmt.Errorf("%w: %s answered %d", ErrBackendDown, host, resp.StatusCode)
 	}
 	return nil
 }

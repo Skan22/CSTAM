@@ -10,7 +10,15 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from ipo.adapters.openstack.base import TAG, CloudError, Port, QuotaExceeded, Server
+from ipo.adapters.openstack.base import (
+    TAG,
+    CloudError,
+    Port,
+    QuotaExceeded,
+    Server,
+    port_name,
+    server_name,
+)
 
 
 class FakeCloud:
@@ -35,6 +43,22 @@ class FakeCloud:
             self.servers = {s["id"]: Server(**{**s, "tags": tuple(s["tags"])})
                             for s in data["servers"]}
             self._ids = itertools.count(data["next_id"])
+
+    def adopt(self, *, ip: str, port_id: str | None, server_id: str | None) -> None:
+        """Take over a port and server a previous process created, as recorded in the database.
+        The fake keeps its servers in memory; without this, every restart forgot the warm pool
+        while the leases still named it (found on the first real deploy, where the first team
+        failed with a KeyError for its pooled server)."""
+        with self._lock:
+            if port_id and port_id not in self.ports:
+                self.ports[port_id] = Port(id=port_id, name=port_name(ip), ip=ip,
+                                           created_at=self.clock())
+            if server_id and server_id not in self.servers:
+                self.servers[server_id] = Server(id=server_id, name=server_name(ip),
+                                                 port_id=port_id or "", created_at=self.clock())
+            taken = [int(i.rsplit("-", 1)[1]) for i in (*self.ports, *self.servers)
+                     if i.rsplit("-", 1)[-1].isdigit()]
+            self._ids = itertools.count(max(taken, default=0) + 1)
 
     def _save(self) -> None:
         if self._state is None:

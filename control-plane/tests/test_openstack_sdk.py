@@ -59,6 +59,7 @@ class Compute:
     def create_server(self, **kw: Any) -> Any:
         if self.fail:
             raise self.fail
+        self.last_create = kw
         s = NS(id=f"s{len(self.store) + 1}", name=kw["name"], tags=kw["tags"],
                metadata=kw["metadata"], status="BUILD", created_at="2026-01-01T00:00:10Z",
                port=kw["networks"][0]["port"])
@@ -166,3 +167,10 @@ def test_building_servers_carry_their_status(cloud: OpenStackCloud) -> None:
     s = cloud.ensure_server(name="ipo-vm-a", port_id=p.id)
     cloud.conn.compute.store[s.id].status = "BUILD"
     assert [x.status for x in cloud.list_servers()] == ["BUILD"]
+
+
+def test_a_sandbox_boots_with_a_config_drive(cloud: OpenStackCloud) -> None:
+    """sandbox-net has no DHCP: without the config drive a sandbox would have no address."""
+    p = cloud.ensure_port(name="ipo-port-a", ip="10.20.0.11")
+    cloud.ensure_server(name="ipo-vm-a", port_id=p.id)
+    assert cloud.conn.compute.last_create["config_drive"] is True

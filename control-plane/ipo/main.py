@@ -15,12 +15,16 @@ Configuration comes from the environment:
     IPO_AGENTS         gw-a=https://10.0.0.11:8443,gw-b=https://10.0.0.12:8443
                        (with IPO_CLOUD=fake and no IPO_AGENTS, in-process agent doubles are used)
     IPO_AGENT_CERT / IPO_AGENT_KEY / IPO_AGENT_CA   mTLS material for the agents
-    IPO_VIP            the gateway VIP, for the registration probe
+    IPO_VIP            the gateway VIP, for the registration probe with IPO_PROBE=vip
+    IPO_PROBE          how registration checks a team serves: `agents` (default with IPO_AGENTS: the
+                       gateways request it through their own Traefik), `vip`, or `none`
     IPO_DNS            `wildcard` (default: *.<domain> is set once) or `rfc2136` (per-team records;
                        needs IPO_DNS_SERVER, IPO_DNS_TARGET; optional IPO_DNS_ZONE, IPO_DNS_TTL,
                        IPO_DNS_TSIG_NAME / _SECRET / _ALGORITHM)
     IPO_GRAFANA_URL    Grafana the dashboard may embed: an http(s) URL, or a path such as /grafana
                        when the same front serves both (optional)
+    IPO_PROBE_TIMEOUT  how long registration waits for a new sandbox to answer through the VIP
+                       (default 180: a VM on FelCloud serves about 90 s after it is created)
     IPO_RELEASE_VERIFY_SECONDS  how long teardown waits for the cloud to finish deleting a VM
                        before calling it a leftover (default 40)
     IPO_WORKERS        saga worker threads (default 48)
@@ -40,6 +44,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
+from typing import cast
 
 import psycopg
 import uvicorn
@@ -50,7 +55,7 @@ from ipo.adapters import dns as dnsmod
 from ipo.adapters.local_agent import LocalAgent
 from ipo.adapters.openstack.base import Cloud
 from ipo.adapters.openstack.fake import FakeCloud
-from ipo.adapters.prober import HttpProber, NullProber
+from ipo.adapters.prober import AgentProber, HttpProber, NullProber, ProbingAgent
 from ipo.api.app import AppDeps, create_app, grafana_url
 from ipo.api.users import create_user
 from ipo.config import load_platform, pool_addresses
@@ -81,6 +86,7 @@ class Runtime:
     settings: Settings
     connect: Callable[[], psycopg.Connection]
     agents: Mapping[str, Agent]
+    deps: Deps | None = None  # what the saga workers were given (tests inspect the prober)
     stop: threading.Event = field(default_factory=threading.Event)
     threads: list[threading.Thread] = field(default_factory=list)
 
@@ -152,8 +158,14 @@ def build_runtime(
     fake = env.get("IPO_CLOUD") == "fake"
     if cloud is None:
         if fake:
-            cloud = FakeCloud(boot_seconds=float(env.get("IPO_FAKE_BOOT_SECONDS", "0")),
-                              state_file=env.get("IPO_FAKE_STATE") or None)
+            fake_cloud = FakeCloud(boot_seconds=float(env.get("IPO_FAKE_BOOT_SECONDS", "0")),
+                                   state_file=env.get("IPO_FAKE_STATE") or None)
+            with connect() as conn:  # what the leases say exists, from before this process
+                for ip, port_id, server_id in conn.execute(
+                        "SELECT host(ip), port_id, server_id FROM leases"
+                        " WHERE port_id IS NOT NULL OR server_id IS NOT NULL"):
+                    fake_cloud.adopt(ip=ip, port_id=port_id, server_id=server_id)
+            cloud = fake_cloud
         else:
             from ipo.adapters.openstack.sdk import OpenStackCloud
             cloud = OpenStackCloud.from_env(env, base)
@@ -162,7 +174,16 @@ def build_runtime(
         agents = ({g: LocalAgent(signer.public_b64) for g in base.gateways}
                   if fake and not env.get("IPO_AGENTS") else _agents(env))
     if prober is None:
-        prober = HttpProber(env["IPO_VIP"]) if env.get("IPO_VIP") else NullProber()
+        # Through the gateways' agents when there are real ones: on the real network the control
+        # plane has no path to the VIP. IPO_PROBE=vip probes the VIP directly (a lab, a laptop).
+        mode = env.get("IPO_PROBE") or ("agents" if env.get("IPO_AGENTS") else
+                                        "vip" if env.get("IPO_VIP") else "none")
+        if mode == "agents":
+            prober = AgentProber(cast(Mapping[str, ProbingAgent], agents))
+        elif mode == "vip":
+            prober = HttpProber(env["IPO_VIP"])
+        else:
+            prober = NullProber()
 
     def failover(name: str) -> None:
         fault = getattr(agents[name], "fault", None)
@@ -174,11 +195,12 @@ def build_runtime(
     if dns is None:
         dns = dnsmod.from_env(env, base.domain)
     deps = Deps(cloud, DbGateways(base), prober, base, dns,
-                release_verify_seconds=float(env.get("IPO_RELEASE_VERIFY_SECONDS", "40")))
+                release_verify_seconds=float(env.get("IPO_RELEASE_VERIFY_SECONDS", "40")),
+                probe_timeout=float(env.get("IPO_PROBE_TIMEOUT", "180")))
     app = create_app(AppDeps(connect, base, jwt_secret=env["IPO_JWT_SECRET"],
                              grafana_url=grafana_url(env.get("IPO_GRAFANA_URL", "")),
                              failover=failover if agents else None))
-    rt = Runtime(app, base, connect, agents)
+    rt = Runtime(app, base, connect, agents, deps)
 
     def live() -> Settings:
         with connect() as conn:

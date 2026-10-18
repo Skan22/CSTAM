@@ -231,11 +231,18 @@ class HttpAgent:
 
     def __init__(self, base_url: str, *, cert: tuple[str, str] | None = None,
                  ca: str | None = None, timeout: float = 5.0) -> None:
+        import ssl
+
         import httpx
 
         self._httpx = httpx
-        self._client = httpx.Client(base_url=base_url, cert=cert, verify=ca or True,
-                                    timeout=timeout)
+        # An explicit context: httpx 0.28 silently drops `cert=` when `verify` is a CA path, so
+        # the agents saw no client certificate and refused every push (found on the first real
+        # deploy, where the agents' own config pull had been hiding it).
+        context = ssl.create_default_context(cafile=ca) if ca else ssl.create_default_context()
+        if cert:
+            context.load_cert_chain(*cert)
+        self._client = httpx.Client(base_url=base_url, verify=context, timeout=timeout)
 
     def put_config(self, envelope: ConfigVersion) -> Ack:
         try:
@@ -250,6 +257,17 @@ class HttpAgent:
         if r.status_code == 200:
             return Ack(True, int(data.get("live_version", envelope.version)))
         return Ack(False, int(data.get("live_version", 0)), data.get("error", r.text))
+
+    def probe(self, host: str) -> tuple[bool, str]:
+        """Ask the agent to request `host` through its own Traefik: (served, why not)."""
+        try:
+            r = self._client.post("/probe", json={"host": host})
+        except self._httpx.TransportError as exc:
+            return False, f"agent unreachable: {exc}"
+        if r.status_code != 200:
+            return False, f"agent answered {r.status_code}"
+        data = r.json()
+        return bool(data.get("ok")), str(data.get("error", ""))
 
     def fault(self) -> None:
         """Ask the agent to stop keepalived's VRRP advertisements, forcing a failover."""

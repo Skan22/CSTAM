@@ -7,8 +7,10 @@ Each job is a list of steps. A step's progress is recorded in `saga_steps` as it
 """
 
 import random
+import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Protocol
@@ -104,7 +106,8 @@ class SagaRunner:
             self._hook("before", step.name)
             started = time.monotonic()
             try:
-                result = self._retrying(partial(step.run, conn, job))
+                with self._keepalive(job):
+                    result = self._retrying(partial(step.run, conn, job))
             except Exception as e:
                 self._record(conn, job, step.name, "failed", {"error": str(e)})
                 metrics.SAGA_STEP_DURATION.labels(step.name).observe(time.monotonic() - started)
@@ -165,6 +168,29 @@ class SagaRunner:
             "UPDATE saga_steps SET status = %s, finished_at = now(),"
             " result = COALESCE(%s, result) WHERE job_id = %s AND step = %s",
             (status, Jsonb(result) if result is not None else None, job.id, step))
+
+    @contextmanager
+    def _keepalive(self, job: Job) -> Iterator[None]:
+        """Keep this worker's lock fresh while a step runs. A step can outlast the stale window
+        (a cold boot waits for Nova, the probe waits for the sandbox): refreshed only between
+        steps, the job looked abandoned and a second worker ran it alongside (found on the first
+        real deploy). A worker that dies stops refreshing, so a dead one is still taken over."""
+        done = threading.Event()
+
+        def beat() -> None:
+            with self._connect() as conn:
+                while not done.wait(max(1.0, self._stale / 3)):
+                    conn.execute("UPDATE jobs SET locked_at = now() WHERE id = %s"
+                                 " AND locked_by = %s AND state = 'running'",
+                                 (job.id, self._worker_id))
+
+        t = threading.Thread(target=beat, name=f"keepalive-{job.id[:8]}", daemon=True)
+        t.start()
+        try:
+            yield
+        finally:
+            done.set()
+            t.join(5)
 
     @staticmethod
     def _heartbeat(conn: psycopg.Connection, job: Job) -> None:

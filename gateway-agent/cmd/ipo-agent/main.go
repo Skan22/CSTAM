@@ -102,7 +102,8 @@ func run(ctx context.Context, get func(string) string) error {
 
 	insecure := get("IPO_AGENT_INSECURE") == "1"
 	srv := &server.Server{Name: name, Pipeline: pipe, VRRP: mon, Metrics: reg, Insecure: insecure,
-		AdminCNs: strings.Split(env(get, "IPO_AGENT_ADMIN_CNS", "ipo-control-plane"), ","), Started: time.Now()}
+		AdminCNs: strings.Split(env(get, "IPO_AGENT_ADMIN_CNS", "ipo-control-plane"), ","), Started: time.Now(),
+		Prober: pipeline.HTTPProber{Base: env(get, "IPO_TRAEFIK_WEB", "http://127.0.0.1:80")}}
 	httpSrv := &http.Server{Addr: env(get, "IPO_AGENT_LISTEN", ":8443"), Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	if !insecure {
 		httpSrv.TLSConfig, err = server.ServerTLS(get("IPO_AGENT_CERT"), get("IPO_AGENT_KEY"), get("IPO_AGENT_CA"))

@@ -1,6 +1,8 @@
 """Probes that a team's hostname answers through the gateway VIP."""
 
 import time
+from collections.abc import Mapping
+from typing import Protocol
 
 import httpx
 
@@ -34,4 +36,31 @@ class HttpProber:
                 last = str(exc) or type(exc).__name__
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"{host} did not answer through {self.base}: {last}")
+            time.sleep(self.interval)
+
+
+class ProbingAgent(Protocol):
+    def probe(self, host: str) -> tuple[bool, str]: ...
+
+
+class AgentProber:
+    """Asks the gateway agents to request `host` through their own Traefik until one is answered
+    by the team's sandbox. This is the path real traffic takes; the management network, where the
+    control plane runs, has no route to the VIP (found on the first real deploy)."""
+
+    def __init__(self, agents: Mapping[str, ProbingAgent], *, interval: float = 1.0) -> None:
+        self.agents = agents
+        self.interval = interval
+
+    def probe(self, host: str, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        last: dict[str, str] = {}
+        while True:
+            for name, agent in self.agents.items():
+                ok, why = agent.probe(host)
+                if ok:
+                    return
+                last[name] = why
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"{host} did not answer through the gateways: {last}")
             time.sleep(self.interval)

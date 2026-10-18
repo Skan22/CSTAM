@@ -264,38 +264,29 @@ func TestRejectsReplayedOlderVersions(t *testing.T) {
 	}
 }
 
-func TestDeadBackendRollsBackWithinASecond(t *testing.T) {
+// A new team's VM that does not answer yet (a cold boot on a real cloud takes a minute) does not
+// roll the config back: the route is loaded, which is what the swap must prove. Rolling back would
+// also block every later change, which carries that route again. The control plane waits for the
+// backend through POST /probe.
+func TestABackendThatIsNotUpYetDoesNotRollTheConfigBack(t *testing.T) {
 	r := newRig(t)
 	good := body(rt{"t-a", "a.felcloud.test", "10.20.0.11"})
 	if _, err := r.apply(1, good); err != nil {
 		t.Fatal(err)
 	}
-	r.traefik.Unmap("10.20.0.12:8080") // the new team's VM is not answering
-	start := time.Now()
-	v, err := r.apply(2, body(rt{"t-a", "a.felcloud.test", "10.20.0.11"}, rt{"t-b", "b.felcloud.test", "10.20.0.12"}))
-	elapsed := time.Since(start)
-	if kindOf(err) != KindRollback || v != 1 {
+	r.traefik.Unmap("10.20.0.12:8080") // the new team's VM is still booting
+	next := body(rt{"t-a", "a.felcloud.test", "10.20.0.11"}, rt{"t-b", "b.felcloud.test", "10.20.0.12"})
+	if v, err := r.apply(2, next); err != nil || v != 2 {
 		t.Fatalf("v=%d err=%v", v, err)
 	}
-	if r.live() != good || r.p.Version() != 1 {
-		t.Error("live config was not restored")
+	if got := r.get("b.felcloud.test"); got != http.StatusBadGateway {
+		t.Errorf("the new route should be loaded, its backend down: %d", got)
 	}
-	if elapsed > time.Second {
-		t.Errorf("failed swap took %v", elapsed)
-	}
-	if got := r.get("a.felcloud.test"); got != 200 {
-		t.Errorf("the previous route no longer answers: %d", got)
-	}
-	if got := r.get("b.felcloud.test"); got != 404 {
-		t.Errorf("the rejected route is still served: %d", got)
-	}
-	if _, rb, _ := r.metrics.Snapshot(); rb != 1 {
-		t.Errorf("rollbacks metric = %d", rb)
-	}
-	// The rollback restores the config Traefik was serving without another proof of health.
-	last := r.spans.Spans()[len(r.spans.Spans())-1]
-	if last.Name != "rollback" {
-		t.Errorf("last span %q", last.Name)
+	// and the next change, which carries b's route again, is not held back by it
+	third := body(rt{"t-a", "a.felcloud.test", "10.20.0.11"}, rt{"t-b", "b.felcloud.test", "10.20.0.12"},
+		rt{"t-c", "c.felcloud.test", "10.20.0.13"})
+	if v, err := r.apply(3, third); err != nil || v != 3 {
+		t.Fatalf("v=%d err=%v", v, err)
 	}
 }
 
@@ -304,8 +295,10 @@ func TestRollbackTimeIsMeasured(t *testing.T) {
 	if _, err := r.apply(1, body(rt{"t-a", "a.felcloud.test", "10.20.0.11"})); err != nil {
 		t.Fatal(err)
 	}
-	r.traefik.Unmap("10.20.0.12:8080")
-	_, _ = r.apply(2, body(rt{"t-b", "b.felcloud.test", "10.20.0.12"}))
+	r.traefik.Unmap(policy.CanaryBackend) // Traefik stops forwarding: a real reason to roll back
+	if _, err := r.apply(2, body(rt{"t-b", "b.felcloud.test", "10.20.0.12"})); kindOf(err) != KindRollback {
+		t.Fatalf("err=%v", err)
+	}
 	for _, s := range r.spans.Spans() {
 		if s.Name == "rollback" && s.DurationMS > 1000 {
 			t.Errorf("rollback stage took %.0f ms", s.DurationMS)
@@ -477,8 +470,8 @@ func TestRollbackNeedsNoDiskSpace(t *testing.T) {
 	if _, err := r.apply(1, good); err != nil {
 		t.Fatal(err)
 	}
-	full = true // staging still fits (it is small), everything after does not
-	r.traefik.Unmap("10.20.0.12:8080")
+	full = true                           // staging still fits (it is small), everything after does not
+	r.traefik.Unmap(policy.CanaryBackend) // and the swap fails its proof, so it must roll back
 	_, err := r.apply(2, body(rt{"t-b", "b.felcloud.test", "10.20.0.12"}))
 	if kindOf(err) != KindRollback || r.live() != good {
 		t.Fatalf("err=%v live=%q", err, r.live())

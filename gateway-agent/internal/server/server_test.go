@@ -83,6 +83,7 @@ func (p *pki) issue(t *testing.T, name string, serial int64, usage x509.ExtKeyUs
 // -- the agent under test
 
 type agent struct {
+	tf    *faketraefik.Server
 	srv   *Server
 	priv  ed25519.PrivateKey
 	dir   string
@@ -112,9 +113,10 @@ func newAgent(t *testing.T) *agent {
 		t.Fatal(err)
 	}
 	vdir := t.TempDir()
-	return &agent{priv: priv, dir: dir, state: filepath.Join(vdir, "state"), srv: &Server{
+	return &agent{tf: tf, priv: priv, dir: dir, state: filepath.Join(vdir, "state"), srv: &Server{
 		Name: "gw-a", Pipeline: p, Metrics: m, Started: time.Now(), AdminCNs: []string{"ipo-admin"},
-		VRRP: vrrp.Monitor{StateFile: filepath.Join(vdir, "state"), FaultFile: filepath.Join(vdir, "fault")},
+		Prober: pipeline.HTTPProber{Base: tf.WebURL},
+		VRRP:   vrrp.Monitor{StateFile: filepath.Join(vdir, "state"), FaultFile: filepath.Join(vdir, "fault")},
 	}}
 }
 
@@ -309,5 +311,41 @@ func TestApplyOutlivesTheClientConnection(t *testing.T) {
 	a.srv.Handler().ServeHTTP(rec, req)
 	if rec.Code != 200 || a.srv.Pipeline.Version() != 1 {
 		t.Fatalf("status %d live %d: %s", rec.Code, a.srv.Pipeline.Version(), rec.Body)
+	}
+}
+
+func TestProbeTellsAServingBackendFromALoadedRouteAndFromNoRoute(t *testing.T) {
+	a := newAgent(t)
+	a.srv.Insecure = true // the certificate check is the same as /fault's, tested above
+	ts := httptest.NewServer(a.srv.Handler())
+	defer ts.Close()
+	if code, out := put(t, ts.Client(), ts.URL, signing.Sign(a.priv, 1, body("a.x"))); code != 200 {
+		t.Fatalf("put: %d %v", code, out)
+	}
+	probe := func(host string) map[string]any {
+		resp, err := http.Post(ts.URL+"/probe", "application/json", strings.NewReader(`{"host":"`+host+`"}`))
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatalf("%s: %v %v", host, resp, err)
+		}
+		var out map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		return out
+	}
+	if out := probe("a.x"); out["ok"] != true || out["routed"] != true {
+		t.Errorf("serving: %v", out)
+	}
+	if out := probe("nobody.x"); out["ok"] != false || out["routed"] != false {
+		t.Errorf("no route: %v", out)
+	}
+	a.tf.Unmap("10.20.0.11:8080") // the team's VM stops answering
+	if out := probe("a.x"); out["ok"] != false || out["routed"] != true {
+		t.Errorf("loaded route, backend down: %v", out)
+	}
+	if resp, _ := http.Post(ts.URL+"/probe", "application/json", strings.NewReader(`{"host":"a b"}`)); resp.StatusCode != 400 {
+		t.Errorf("bad host: %d", resp.StatusCode)
+	}
+	a.srv.Insecure = false
+	if resp, _ := http.Post(ts.URL+"/probe", "application/json", strings.NewReader(`{"host":"a.x"}`)); resp.StatusCode != 403 {
+		t.Errorf("without the control plane's certificate: %d", resp.StatusCode)
 	}
 }

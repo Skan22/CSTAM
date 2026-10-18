@@ -90,3 +90,12 @@ def test_refusals_are_permanent_acks_that_report_the_live_version(
 
 def test_fault_reaches_the_agent(agent: HttpAgent) -> None:
     agent.fault()  # raises unless the agent answers 200
+
+
+def test_the_agent_probes_a_team_through_its_own_traefik(agent: HttpAgent, signer: Signer) -> None:
+    """How registration learns a sandbox serves: the control plane has no path to the VIP."""
+    assert agent.put_config(version(signer, 1, RouteRow("a.felcloud.test", "10.20.0.11", 8080,
+                                                        []))).ok
+    assert agent.probe("a.felcloud.test") == (True, "")
+    ok, why = agent.probe("nobody.felcloud.test")
+    assert not ok and "404" in why

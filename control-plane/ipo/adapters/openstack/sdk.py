@@ -114,7 +114,9 @@ class OpenStackCloud:
                 flavor_id=self.conn.compute.find_flavor(
                     self.flavor_name, ignore_missing=False).id,
                 networks=[{"port": port_id}], metadata=dict(metadata or {}), tags=list(tags),
-                **kwargs)
+                # sandbox-net has no DHCP and no metadata route: cloud-init reads the address
+                # from the config drive, or the VM boots without a network.
+                config_drive=True, **kwargs)
         ready = self.conn.compute.wait_for_server(existing, status="ACTIVE",
                                                   wait=self.wait_seconds)
         return self._server(ready, {ready.id: port_id})

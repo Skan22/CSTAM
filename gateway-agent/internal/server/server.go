@@ -13,9 +13,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -39,6 +41,8 @@ type Server struct {
 	// Insecure serves without client certificates (development only): /fault is then open.
 	Insecure bool
 	Started  time.Time
+	// Prober requests a host through this gateway's own Traefik, for POST /probe.
+	Prober pipeline.Prober
 }
 
 // Handler returns the routes.
@@ -48,6 +52,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /status", s.status)
 	mux.HandleFunc("POST /fault", s.fault)
 	mux.HandleFunc("DELETE /fault", s.clearFault)
+	mux.HandleFunc("POST /probe", s.probe)
 	mux.HandleFunc("GET /metrics", s.metrics)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	return mux
@@ -144,6 +149,36 @@ func (s *Server) clearFault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"faulted": false})
+}
+
+// probe requests a team's host through this gateway's Traefik, once, for the control plane: the
+// management network has no path to the VIP, so this is how registration learns that a new
+// team's sandbox serves. ok means the backend answered; routed means Traefik knows the host.
+func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
+	if !s.isAdmin(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "probing needs the control plane's certificate"})
+		return
+	}
+	var req struct {
+		Host string `json:"host"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil || req.Host == "" ||
+		len(req.Host) > 253 || strings.ContainsAny(req.Host, " /\r\n") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "send {\"host\": \"<name>\"}"})
+		return
+	}
+	if s.Prober == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "no prober configured"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	err := s.Prober.Probe(ctx, req.Host)
+	out := map[string]any{"ok": err == nil, "routed": err == nil || errors.Is(err, pipeline.ErrBackendDown)}
+	if err != nil {
+		out["error"] = err.Error()
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
